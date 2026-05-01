@@ -150,6 +150,33 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
   .tabs-bar{padding:0 1rem;overflow-x:auto;}
   .tab-btn{padding:.65rem .9rem;white-space:nowrap;}
 }
+/* ===== Modal Add Expense ===== */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;align-items:center;justify-content:center;padding:16px}
+.modal-overlay.active{display:flex}
+.modal{background:#fff;border-radius:12px;width:100%;max-width:440px;max-height:90vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.modal-header{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid var(--border)}
+.modal-title{font-size:16px;font-weight:600;color:var(--text1)}
+.modal-close{background:none;border:none;font-size:24px;line-height:1;cursor:pointer;color:var(--text3);padding:0;width:28px;height:28px}
+.modal-close:hover{color:var(--text1)}
+.modal-body{padding:20px}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--border)}
+.form-row{margin-bottom:14px}
+.form-row-split{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-label{display:block;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.form-input{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:inherit;background:#fff;box-sizing:border-box}
+.form-input:focus{outline:none;border-color:#2563a8;box-shadow:0 0 0 3px rgba(37,99,168,.15)}
+.form-error{color:var(--red);font-size:13px;margin-top:8px;min-height:18px}
+.btn-primary{background:#2563a8;color:#fff;border:none;padding:9px 18px;border-radius:6px;font-size:14px;font-weight:500;cursor:pointer;font-family:inherit}
+.btn-primary:hover{background:#1e4f87}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn-secondary{background:#fff;color:var(--text2);border:1px solid var(--border);padding:9px 18px;border-radius:6px;font-size:14px;font-weight:500;cursor:pointer;font-family:inherit}
+.btn-secondary:hover{background:#f5f5f5}
+.combobox{position:relative}
+.combobox-list{display:none;position:absolute;top:calc(100% + 2px);left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:6px;max-height:200px;overflow-y:auto;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.08)}
+.combobox.open .combobox-list{display:block}
+.combobox-item{padding:8px 11px;font-size:14px;cursor:pointer}
+.combobox-item:hover,.combobox-item.active{background:#f0f4f8}
+.combobox-empty{padding:10px 11px;font-size:13px;color:var(--text3);font-style:italic}
 </style>
 </head>
 <body>
@@ -248,7 +275,8 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
       </div>
     </div>
     <div class="section-title">Presupuesto por categoría <span style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none">— clic para detalle</span></div>
-    <button class="edit-toggle" id="toggleBudgets">Editar presupuestos</button>
+    <button class="edit-toggle" id="addExpenseBtn">+ Add expense</button>
+    <button class="edit-toggle" id="toggleBudgets" style="margin-left:8px">Editar presupuestos</button>
     <div class="budget-editor" id="budgetEditor"><div class="editor-grid" id="editorGrid"></div></div>
     <div class="budgets-grid" id="budgetsGrid"></div>
   </div>
@@ -304,11 +332,53 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
     <div class="txn-list" id="txnList"></div>
   </div>
 </div>
-
+<!-- MODAL: Add Expense -->
+<div class="modal-overlay" id="addExpenseModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Nuevo gasto</div>
+      <button class="modal-close" id="addExpenseClose">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label class="form-label">Nombre</label>
+        <input type="text" class="form-input" id="exName" placeholder="ej. Almuerzo con cliente" maxlength="120">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Categoría</label>
+        <div class="combobox" id="exCatCombo">
+          <input type="text" class="form-input" id="exCatInput" placeholder="Empezá a escribir..." autocomplete="off">
+          <div class="combobox-list" id="exCatList"></div>
+        </div>
+      </div>
+      <div class="form-row form-row-split">
+        <div>
+          <label class="form-label">Fecha</label>
+          <input type="date" class="form-input" id="exDate">
+        </div>
+        <div>
+          <label class="form-label">Monto (ARS)</label>
+          <input type="number" class="form-input" id="exAmount" placeholder="0" min="0" step="0.01">
+        </div>
+      </div>
+      <div class="form-error" id="exError"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" id="exCancel">Cancelar</button>
+      <button class="btn-primary" id="exSubmit">Guardar gasto</button>
+    </div>
+  </div>
+</div>
 <script>
 const API_KEY='AIzaSyBq2Le9PXpD93lhLWv7ck-j-ctbssijtN4';
 const SHEET_ID='1PI9Yy_GVQOqBLxxByYP5Y99swbdVGNRavTMC0KIY2QU';
 const COLORS=['#2563a8','#1a7a52','#c0392b','#7c3aed','#b45309','#be185d','#0f766e','#4d7c0f','#9f1239','#374151','#1e40af','#065f46','#92400e','#6d28d9'];
+// ===== Supabase config =====
+const SUPABASE_URL='https://afbhhtrbodflxvrjfwyf.supabase.co';
+const SUPABASE_ANON_KEY='sb_publishable_-kOChgUMkLSQmpJQ8WJ1VA_IR5RfylD';
+const CUTOFF_DATE='2026-05-01'; // desde esta fecha (inclusive) los gastos viven en Supabase
+const CATEGORIES=['Planes Amigos','Uber/Taxis','Planes Maria','Salud','Comidas','Café','Delivery','Estética','Actividad Física','Auto','Supermercados','Hogar','Planes Familia','Otros','Ropa','Suplementos','Eventos','Mascotas'];
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 
 const fmtUSD=v=>'$'+Math.round(v).toLocaleString('en-US');
 const fmtARS=v=>'$'+Math.round(v).toLocaleString('es-AR');
@@ -339,7 +409,6 @@ let charts={};
 
 function setStatus(msg,cls){const el=document.getElementById('statusMsg');el.textContent=msg;el.className='status-pill '+cls;}
 function destroyChart(k){if(charts[k]){charts[k].destroy();delete charts[k];}}
-
 // ── FETCH ALL DATA ──────────────────────────────────────────
 async function fetchSheet(range){
   const encoded=range.replace(/'/g,'%27').replace(/\+/g,'%2B').replace(/!/g,'!');
@@ -349,17 +418,28 @@ async function fetchSheet(range){
   return j.values||[];
 }
 
+async function fetchSupabaseExpenses(){
+  const{data,error}=await sb.from('expenses').select('date,name,amount,category').gte('date',CUTOFF_DATE).order('date',{ascending:true});
+  if(error)throw new Error('Supabase: '+error.message);
+  return(data||[]).map(r=>{
+    const[y,m,d]=(r.date||'').split('-').map(Number);
+    return{date:new Date(y,m-1,d),name:(r.name||'').trim(),amt:parseFloat(r.amount)||0,cat:(r.category||'').trim()};
+  }).filter(r=>r.date&&!isNaN(r.date.getTime()));
+}
+
 async function loadData(){
   setStatus('Cargando...','loading');
   try{
-    const[varVals,balVals,nwVals]=await Promise.all([
+   const[varVals,balVals,nwVals,sbExpenses]=await Promise.all([
       fetchSheet('Variables!A:D'),
       fetchSheet("'Income and Expending'!A:BZ"),
-      fetchSheet("'Net Worth'!A:BZ")
+      fetchSheet("'Net Worth'!A:BZ"),
+      fetchSupabaseExpenses()
     ]);
-    processVariables(varVals);
+    processVariables(varVals,sbExpenses);
     processBalance(balVals);
     processNetWorth(nwVals);
+    overlaySupabaseVariables();
     populatePickers();
     applyPreset('ytd');
     // Debug info in console
@@ -374,11 +454,15 @@ async function loadData(){
     render();
   }catch(e){setStatus('Error: '+e.message,'error');console.error(e);}
 }
-
-function processVariables(vals){
+function processVariables(vals,sbExpenses){
   const rows=vals[0]&&/fecha/i.test(String(vals[0][0]))?vals.slice(1):vals;
-  varRows=rows.map(r=>({date:parseDate(r[0]),name:(r[1]||'').trim(),amt:parseMoney(r[2]),cat:(r[3]||'').trim()}))
+  const sheetRows=rows.map(r=>({date:parseDate(r[0]),name:(r[1]||'').trim(),amt:parseMoney(r[2]),cat:(r[3]||'').trim()}))
     .filter(r=>r.date&&r.cat&&r.amt!==0&&r.date.getFullYear()>=2025);
+  // Sheets = histórico hasta cutoff (exclusive). Supabase = desde cutoff (inclusive).
+  const cutoff=new Date(CUTOFF_DATE+'T00:00:00');
+  const sheetHistorical=sheetRows.filter(r=>r.date<cutoff);
+  const sbRows=sbExpenses||[];
+  varRows=[...sheetHistorical,...sbRows].sort((a,b)=>a.date-b.date);
   const mset=new Set(varRows.map(r=>mk(r.date)));
   // Always include current calendar month even if no data yet
   const now=new Date();
@@ -423,6 +507,22 @@ function processBalance(vals){
     }
   }
   balData={monthCols,rowMap};
+}
+function overlaySupabaseVariables(){
+  if(!balData.rowMap||!balData.monthCols)return;
+  const cutoff=new Date(CUTOFF_DATE+'T00:00:00');
+  for(const[col,monthLabel]of Object.entries(balData.monthCols)){
+    const m=monthLabel.match(/^(\w+)\s+(\d{2})$/i);
+    if(!m)continue;
+    const monthNames=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const monthIdx=monthNames.indexOf(m[1].toLowerCase());
+    if(monthIdx<0)continue;
+    const year=2000+parseInt(m[2]);
+    const monthStart=new Date(year,monthIdx,1);
+    if(monthStart<cutoff)continue;
+    // Post-cutoff: por ahora dejamos Variables en 0 hasta tener tipo de cambio (paso 5)
+    if(balData.rowMap['Variables'])balData.rowMap['Variables'][monthLabel]=0;
+  }
 }
 
 function processNetWorth(vals){
@@ -940,6 +1040,92 @@ document.getElementById('toggleBudgets').onclick=function(){
 };
 
 loadData();
+// ── ADD EXPENSE MODAL ─────────────────────────────────────
+const exModal=document.getElementById('addExpenseModal');
+const exNameEl=document.getElementById('exName');
+const exCatInput=document.getElementById('exCatInput');
+const exCatCombo=document.getElementById('exCatCombo');
+const exCatList=document.getElementById('exCatList');
+const exDateEl=document.getElementById('exDate');
+const exAmountEl=document.getElementById('exAmount');
+const exErrorEl=document.getElementById('exError');
+const exSubmitBtn=document.getElementById('exSubmit');
+
+const normStr=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+
+let exCatSelected='';
+
+function exOpenModal(){
+  exNameEl.value='';
+  exCatInput.value='';
+  exCatSelected='';
+  exAmountEl.value='';
+  exErrorEl.textContent='';
+  const today=new Date();
+  exDateEl.value=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+  exModal.classList.add('active');
+  exNameEl.focus();
+  exRenderCatList('');
+}
+
+function exCloseModal(){
+  exModal.classList.remove('active');
+  exCatCombo.classList.remove('open');
+}
+
+function exRenderCatList(query){
+  const q=normStr(query);
+  const matches=q?CATEGORIES.filter(c=>normStr(c).startsWith(q)):CATEGORIES;
+  if(matches.length===0){
+    exCatList.innerHTML='<div class="combobox-empty">Sin coincidencias</div>';
+  }else{
+    exCatList.innerHTML=matches.map(c=>`<div class="combobox-item" data-cat="${c}">${c}</div>`).join('');
+  }
+}
+
+document.getElementById('addExpenseBtn').onclick=exOpenModal;
+document.getElementById('addExpenseClose').onclick=exCloseModal;
+document.getElementById('exCancel').onclick=exCloseModal;
+exModal.onclick=e=>{if(e.target===exModal)exCloseModal();};
+
+exCatInput.onfocus=()=>{exCatCombo.classList.add('open');exRenderCatList(exCatInput.value);};
+exCatInput.oninput=()=>{exCatCombo.classList.add('open');exCatSelected='';exRenderCatList(exCatInput.value);};
+exCatInput.onblur=()=>{setTimeout(()=>exCatCombo.classList.remove('open'),150);};
+
+exCatList.onmousedown=e=>{
+  const item=e.target.closest('.combobox-item');
+  if(!item)return;
+  e.preventDefault();
+  exCatInput.value=item.dataset.cat;
+  exCatSelected=item.dataset.cat;
+  exCatCombo.classList.remove('open');
+};
+
+exSubmitBtn.onclick=async()=>{
+  exErrorEl.textContent='';
+  const name=exNameEl.value.trim();
+  const cat=exCatSelected||exCatInput.value.trim();
+  const date=exDateEl.value;
+  const amount=parseFloat(exAmountEl.value);
+  if(!name){exErrorEl.textContent='Falta el nombre.';return;}
+  if(!CATEGORIES.includes(cat)){exErrorEl.textContent='Elegí una categoría de la lista.';return;}
+  if(!date){exErrorEl.textContent='Falta la fecha.';return;}
+  if(date<CUTOFF_DATE){exErrorEl.textContent=`La fecha debe ser ${CUTOFF_DATE} o posterior.`;return;}
+  if(!(amount>0)){exErrorEl.textContent='El monto debe ser mayor a 0.';return;}
+  exSubmitBtn.disabled=true;
+  exSubmitBtn.textContent='Guardando...';
+  try{
+    const{error}=await sb.from('expenses').insert({date,name,amount,category:cat});
+    if(error)throw new Error(error.message);
+    exCloseModal();
+    await loadData();
+  }catch(err){
+    exErrorEl.textContent='Error al guardar: '+err.message;
+  }finally{
+    exSubmitBtn.disabled=false;
+    exSubmitBtn.textContent='Guardar gasto';
+  }
+};
 </script>
 </body>
 </html>
