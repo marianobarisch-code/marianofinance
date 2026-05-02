@@ -177,6 +177,12 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .combobox-item{padding:8px 11px;font-size:14px;cursor:pointer}
 .combobox-item:hover,.combobox-item.active{background:#f0f4f8}
 .combobox-empty{padding:10px 11px;font-size:13px;color:var(--text3);font-style:italic}
+.fx-display{font-size:13px;color:var(--text2);padding:8px 11px;background:#f5f7fa;border-radius:6px}
+.fx-display.error{background:#fdf2f2;color:var(--red)}
+.fx-display.ok{background:#f0f7f0;color:#2d7a4f}
+.fx-manual{margin-top:10px}
+.btn-link{background:none;border:none;color:#2563a8;font-size:13px;cursor:pointer;padding:6px 0;font-family:inherit;text-decoration:underline}
+.btn-link:hover{color:#1e4f87}
 </style>
 </head>
 <body>
@@ -361,6 +367,14 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
           <input type="number" class="form-input" id="exAmount" placeholder="0" min="0" step="0.01">
         </div>
       </div>
+      <div class="form-row" id="exFxRow">
+        <div class="fx-display" id="exFxDisplay">Obteniendo TC blue...</div>
+        <div class="fx-manual" id="exFxManual" style="display:none">
+          <label class="form-label">TC manual (ARS por USD)</label>
+          <input type="number" class="form-input" id="exFxInput" placeholder="ej. 1430" min="0" step="0.01">
+          <button class="btn-link" id="exFxRetry" type="button">Reintentar API</button>
+        </div>
+      </div>
       <div class="form-error" id="exError"></div>
     </div>
     <div class="modal-footer">
@@ -426,7 +440,13 @@ async function fetchSupabaseExpenses(){
     return{date:new Date(y,m-1,d),name:(r.name||'').trim(),amt:parseFloat(r.amount)||0,cat:(r.category||'').trim()};
   }).filter(r=>r.date&&!isNaN(r.date.getTime()));
 }
-
+async function fetchBlueRate(){
+  const res=await fetch('https://dolarapi.com/v1/dolares/blue');
+  if(!res.ok)throw new Error('dolarapi respondió '+res.status);
+  const j=await res.json();
+  if(typeof j.compra!=='number'||typeof j.venta!=='number')throw new Error('respuesta inválida de dolarapi');
+  return(j.compra+j.venta)/2;
+}
 async function loadData(){
   setStatus('Cargando...','loading');
   try{
@@ -1050,10 +1070,34 @@ const exDateEl=document.getElementById('exDate');
 const exAmountEl=document.getElementById('exAmount');
 const exErrorEl=document.getElementById('exError');
 const exSubmitBtn=document.getElementById('exSubmit');
+const exFxDisplay=document.getElementById('exFxDisplay');
+const exFxManual=document.getElementById('exFxManual');
+const exFxInput=document.getElementById('exFxInput');
+const exFxRetry=document.getElementById('exFxRetry');
 
 const normStr=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+const fmtFx=v=>'$'+v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,'.');
 
 let exCatSelected='';
+let exCurrentFx=null;
+
+async function exLoadFx(){
+  exFxDisplay.className='fx-display';
+  exFxDisplay.textContent='Obteniendo TC blue...';
+  exFxManual.style.display='none';
+  exCurrentFx=null;
+  try{
+    const fx=await fetchBlueRate();
+    exCurrentFx=fx;
+    exFxDisplay.classList.add('ok');
+    exFxDisplay.textContent='TC blue (promedio compra/venta): '+fmtFx(fx);
+  }catch(err){
+    exFxDisplay.classList.add('error');
+    exFxDisplay.textContent='No se pudo obtener TC blue: '+err.message;
+    exFxManual.style.display='block';
+    exFxInput.value='';
+  }
+}
 
 function exOpenModal(){
   exNameEl.value='';
@@ -1066,6 +1110,7 @@ function exOpenModal(){
   exModal.classList.add('active');
   exNameEl.focus();
   exRenderCatList('');
+  exLoadFx();
 }
 
 function exCloseModal(){
@@ -1101,6 +1146,13 @@ exCatList.onmousedown=e=>{
   exCatCombo.classList.remove('open');
 };
 
+exFxRetry.onclick=exLoadFx;
+
+exFxInput.oninput=()=>{
+  const v=parseFloat(exFxInput.value);
+  exCurrentFx=(v>0)?v:null;
+};
+
 exSubmitBtn.onclick=async()=>{
   exErrorEl.textContent='';
   const name=exNameEl.value.trim();
@@ -1112,10 +1164,13 @@ exSubmitBtn.onclick=async()=>{
   if(!date){exErrorEl.textContent='Falta la fecha.';return;}
   if(date<CUTOFF_DATE){exErrorEl.textContent=`La fecha debe ser ${CUTOFF_DATE} o posterior.`;return;}
   if(!(amount>0)){exErrorEl.textContent='El monto debe ser mayor a 0.';return;}
+  if(!(exCurrentFx>0)){exErrorEl.textContent='Falta el tipo de cambio. Reintentá la API o ingresá uno manual.';return;}
+  const ars_per_usd=exCurrentFx;
+  const amount_usd=Math.round((amount/ars_per_usd)*100)/100;
   exSubmitBtn.disabled=true;
   exSubmitBtn.textContent='Guardando...';
   try{
-    const{error}=await sb.from('expenses').insert({date,name,amount,category:cat});
+    const{error}=await sb.from('expenses').insert({date,name,amount,category:cat,ars_per_usd,amount_usd});
     if(error)throw new Error(error.message);
     exCloseModal();
     await loadData();
