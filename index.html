@@ -441,7 +441,7 @@ async function loadData(){
     processNetWorth(nwVals);
     overlaySupabaseVariables();
     populatePickers();
-    applyPreset('ytd');
+    render();
     // Debug info in console
     console.log('── DEBUG ──');
     console.log('Variables rows:',varRows.length);
