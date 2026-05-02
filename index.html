@@ -433,11 +433,11 @@ async function fetchSheet(range){
 }
 
 async function fetchSupabaseExpenses(){
-  const{data,error}=await sb.from('expenses').select('date,name,amount,category').gte('date',CUTOFF_DATE).order('date',{ascending:true});
+  const{data,error}=await sb.from('expenses').select('date,name,amount,category,amount_usd').gte('date',CUTOFF_DATE).order('date',{ascending:true});
   if(error)throw new Error('Supabase: '+error.message);
   return(data||[]).map(r=>{
     const[y,m,d]=(r.date||'').split('-').map(Number);
-    return{date:new Date(y,m-1,d),name:(r.name||'').trim(),amt:parseFloat(r.amount)||0,cat:(r.category||'').trim()};
+    return{date:new Date(y,m-1,d),name:(r.name||'').trim(),amt:parseFloat(r.amount)||0,amtUsd:parseFloat(r.amount_usd)||0,cat:(r.category||'').trim()};
   }).filter(r=>r.date&&!isNaN(r.date.getTime()));
 }
 async function fetchBlueRate(){
@@ -540,8 +540,20 @@ function overlaySupabaseVariables(){
     const year=2000+parseInt(m[2]);
     const monthStart=new Date(year,monthIdx,1);
     if(monthStart<cutoff)continue;
-    // Post-cutoff: por ahora dejamos Variables en 0 hasta tener tipo de cambio (paso 5)
-    if(balData.rowMap['Variables'])balData.rowMap['Variables'][monthLabel]=0;
+    // Es post-cutoff: recalcular Variables en USD desde varRows
+    const monthKey=year+'-'+String(monthIdx+1).padStart(2,'0');
+    const variablesUsd=varRows.filter(r=>mk(r.date)===monthKey).reduce((s,r)=>s+(r.amtUsd||0),0);
+    const get=lbl=>balData.rowMap[lbl]?balData.rowMap[lbl][monthLabel]||0:0;
+    if(balData.rowMap['Variables'])balData.rowMap['Variables'][monthLabel]=variablesUsd;
+    // Recalcular Egresos = Alquiler + Fijos + Variables (USD calculado) + Viajes y Gastos especiales
+    const egresos=get('Alquiler')+get('Fijos')+variablesUsd+get('Viajes y Gastos especiales');
+    if(balData.rowMap['Egresos'])balData.rowMap['Egresos'][monthLabel]=egresos;
+    // Recalcular Balance = Ingreso total - Egresos
+    const balance=get('Ingreso total')-egresos;
+    if(balData.rowMap['Balance'])balData.rowMap['Balance'][monthLabel]=balance;
+    // Recalcular % Saved over Income
+    const ingreso=get('Ingreso total');
+    if(balData.rowMap['% Saved over Income'])balData.rowMap['% Saved over Income'][monthLabel]=ingreso>0?balance/ingreso:0;
   }
 }
 
