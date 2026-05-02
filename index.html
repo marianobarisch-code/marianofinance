@@ -135,6 +135,10 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .txn-name{color:var(--text);flex:1;}
 .txn-date{color:var(--text3);font-size:11px;font-family:'DM Mono',monospace;margin:0 16px;}
 .txn-amt{font-family:'DM Mono',monospace;font-weight:500;}
+.txn-actions{display:flex;gap:2px;margin-left:8px;}
+.txn-action-btn{background:none;border:none;cursor:pointer;padding:3px 6px;border-radius:4px;font-size:13px;color:var(--text3);line-height:1;}
+.txn-action-btn:hover{background:#e8e6e0;color:var(--text1);}
+.txn-action-btn.danger:hover{color:#c0392b;}
 
 /* SAVINGS BAR */
 .savings-bar-wrap{margin-top:1rem;}
@@ -433,11 +437,11 @@ async function fetchSheet(range){
 }
 
 async function fetchSupabaseExpenses(){
-  const{data,error}=await sb.from('expenses').select('date,name,amount,category,amount_usd').gte('date',CUTOFF_DATE).order('date',{ascending:true});
+  const{data,error}=await sb.from('expenses').select('id,date,name,amount,category,ars_per_usd,amount_usd').gte('date',CUTOFF_DATE).order('date',{ascending:true});
   if(error)throw new Error('Supabase: '+error.message);
   return(data||[]).map(r=>{
     const[y,m,d]=(r.date||'').split('-').map(Number);
-    return{date:new Date(y,m-1,d),name:(r.name||'').trim(),amt:parseFloat(r.amount)||0,amtUsd:parseFloat(r.amount_usd)||0,cat:(r.category||'').trim()};
+    return{id:r.id,date:new Date(y,m-1,d),name:(r.name||'').trim(),amt:parseFloat(r.amount)||0,amtUsd:parseFloat(r.amount_usd)||0,fx:parseFloat(r.ars_per_usd)||0,cat:(r.category||'').trim()};
   }).filter(r=>r.date&&!isNaN(r.date.getTime()));
 }
 async function fetchBlueRate(){
@@ -982,16 +986,41 @@ function openDetail(cat){
   });
   const txns=monthVarData(k).filter(r=>r.cat===cat).sort((a,b)=>b.date-a.date);
   document.getElementById('txnTitle').textContent='Gastos en '+mnName(k)+' ('+txns.length+')';
+  currentDetailCat=cat;
   document.getElementById('txnList').innerHTML=txns.length
-    ?txns.map(r=>`<div class="txn-item"><span class="txn-name">${r.name}</span><span class="txn-date">${fmtDay(r.date)}</span><span class="txn-amt">${fmtARS(r.amt)}</span></div>`).join('')
+    ?txns.map(r=>{
+      const acts=r.id?`<div class="txn-actions"><button class="txn-action-btn" data-act="edit" data-id="${r.id}" title="Editar">✏</button><button class="txn-action-btn danger" data-act="del" data-id="${r.id}" title="Borrar">🗑</button></div>`:'';
+      return `<div class="txn-item"><span class="txn-name">${r.name}</span><span class="txn-date">${fmtDay(r.date)}</span><span class="txn-amt">${fmtARS(r.amt)}</span>${acts}</div>`;
+    }).join('')
     :'<div style="padding:1rem;text-align:center;color:var(--text3);font-size:13px;">Sin gastos este mes</div>';
   document.getElementById('overlay').classList.add('open');
   document.body.style.overflow='hidden';
 }
-function closeDetail(){document.getElementById('overlay').classList.remove('open');document.body.style.overflow='';if(detailInst){detailInst.destroy();detailInst=null;}}
+function closeDetail(){document.getElementById('overlay').classList.remove('open');document.body.style.overflow='';currentDetailCat=null;if(detailInst){detailInst.destroy();detailInst=null;}}
 document.getElementById('closeDetail').onclick=closeDetail;
 document.getElementById('overlay').onclick=e=>{if(e.target===document.getElementById('overlay'))closeDetail();};
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDetail();});
+let currentDetailCat=null;
+document.getElementById('txnList').onclick=async e=>{
+  const btn=e.target.closest('.txn-action-btn');
+  if(!btn)return;
+  const id=btn.dataset.id;
+  const act=btn.dataset.act;
+  const row=varRows.find(r=>r.id===id);
+  if(!row){alert('No encuentro ese gasto.');return;}
+  if(act==='edit'){
+    exOpenModal(row);
+  }else if(act==='del'){
+    if(!confirm('¿Borrar el gasto "'+row.name+'" de '+fmtARS(row.amt)+'? No se puede deshacer.'))return;
+    btn.disabled=true;
+    try{
+      const{error}=await sb.from('expenses').delete().eq('id',id);
+      if(error)throw new Error(error.message);
+      await loadData();
+      if(currentDetailCat)openDetail(currentDetailCat);
+    }catch(err){alert('Error al borrar: '+err.message);btn.disabled=false;}
+  }
+};
 
 // ── MONTH/YEAR PICKER ─────────────────────────────────────────
 function populatePickers(){
@@ -1092,6 +1121,8 @@ const fmtFx=v=>'$'+v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,'.');
 
 let exCatSelected='';
 let exCurrentFx=null;
+let exEditingId=null;
+let exEditingFx=null;
 
 async function exLoadFx(){
   exFxDisplay.className='fx-display';
@@ -1111,23 +1142,49 @@ async function exLoadFx(){
   }
 }
 
-function exOpenModal(){
-  exNameEl.value='';
-  exCatInput.value='';
-  exCatSelected='';
-  exAmountEl.value='';
+function exOpenModal(row){
   exErrorEl.textContent='';
-  const today=new Date();
-  exDateEl.value=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+  if(row&&row.id){
+    // Modo edit
+    exEditingId=row.id;
+    exEditingFx=row.fx||null;
+    exNameEl.value=row.name||'';
+    exCatInput.value=row.cat||'';
+    exCatSelected=row.cat||'';
+    exAmountEl.value=row.amt;
+    const d=row.date;
+    exDateEl.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    document.querySelector('#addExpenseModal .modal-title').textContent='Editar gasto';
+    exSubmitBtn.textContent='Guardar cambios';
+    // En edit no re-fetcheamos blue: usamos el TC original
+    exFxManual.style.display='none';
+    exFxDisplay.className='fx-display ok';
+    exFxDisplay.textContent='TC original (no se modifica al editar): '+fmtFx(row.fx||0);
+    exCurrentFx=row.fx||null;
+  }else{
+    // Modo nuevo
+    exEditingId=null;
+    exEditingFx=null;
+    exNameEl.value='';
+    exCatInput.value='';
+    exCatSelected='';
+    exAmountEl.value='';
+    const today=new Date();
+    exDateEl.value=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+    document.querySelector('#addExpenseModal .modal-title').textContent='Nuevo gasto';
+    exSubmitBtn.textContent='Guardar gasto';
+    exLoadFx();
+  }
   exModal.classList.add('active');
   exNameEl.focus();
   exRenderCatList('');
-  exLoadFx();
 }
 
 function exCloseModal(){
   exModal.classList.remove('active');
   exCatCombo.classList.remove('open');
+  exEditingId=null;
+  exEditingFx=null;
 }
 
 function exRenderCatList(query){
@@ -1140,7 +1197,7 @@ function exRenderCatList(query){
   }
 }
 
-document.getElementById('addExpenseBtn').onclick=exOpenModal;
+document.getElementById('addExpenseBtn').onclick=()=>exOpenModal();
 document.getElementById('addExpenseClose').onclick=exCloseModal;
 document.getElementById('exCancel').onclick=exCloseModal;
 exModal.onclick=e=>{if(e.target===exModal)exCloseModal();};
@@ -1179,18 +1236,25 @@ exSubmitBtn.onclick=async()=>{
   if(!(exCurrentFx>0)){exErrorEl.textContent='Falta el tipo de cambio. Reintentá la API o ingresá uno manual.';return;}
   const ars_per_usd=exCurrentFx;
   const amount_usd=Math.round((amount/ars_per_usd)*100)/100;
+  const isEdit=!!exEditingId;
   exSubmitBtn.disabled=true;
-  exSubmitBtn.textContent='Guardando...';
+  exSubmitBtn.textContent=isEdit?'Guardando cambios...':'Guardando...';
   try{
-    const{error}=await sb.from('expenses').insert({date,name,amount,category:cat,ars_per_usd,amount_usd});
-    if(error)throw new Error(error.message);
+    if(isEdit){
+      const{error}=await sb.from('expenses').update({date,name,amount,category:cat,ars_per_usd,amount_usd}).eq('id',exEditingId);
+      if(error)throw new Error(error.message);
+    }else{
+      const{error}=await sb.from('expenses').insert({date,name,amount,category:cat,ars_per_usd,amount_usd});
+      if(error)throw new Error(error.message);
+    }
     exCloseModal();
     await loadData();
+    if(currentDetailCat)openDetail(currentDetailCat);
   }catch(err){
     exErrorEl.textContent='Error al guardar: '+err.message;
   }finally{
     exSubmitBtn.disabled=false;
-    exSubmitBtn.textContent='Guardar gasto';
+    exSubmitBtn.textContent=isEdit?'Guardar cambios':'Guardar gasto';
   }
 };
 </script>
