@@ -304,14 +304,14 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
         <div class="metric-sub" id="nwTotalSub">—</div>
       </div>
       <div class="metric-card">
-        <div class="metric-label">Activos totales</div>
-        <div class="metric-value" id="nwAssets">—</div>
-        <div class="metric-sub" id="nwAssetsSub">—</div>
+        <div class="metric-label">Cambio % vs mes anterior</div>
+        <div class="metric-value" id="nwChangePct">—</div>
+        <div class="metric-sub" id="nwChangePctSub">—</div>
       </div>
       <div class="metric-card">
-        <div class="metric-label">Pasivos totales</div>
-        <div class="metric-value" id="nwLiab">—</div>
-        <div class="metric-sub" id="nwLiabSub">—</div>
+        <div class="metric-label">Cambio $ vs mes anterior</div>
+        <div class="metric-value" id="nwChangeAbs">—</div>
+        <div class="metric-sub" id="nwChangeAbsSub">—</div>
       </div>
     </div>
     <div class="card">
@@ -871,44 +871,88 @@ function renderNetWorth(k){
   const get=(lbl,col)=>{if(!col||!rm[lbl])return 0;return rm[lbl][col]||0;};
 
   const total=get('Total Patrimonio',mk2);
-  const assets=get('Activos',mk2);
-  const liab=get('Pasivos',mk2);
   const prevTotal=get('Total Patrimonio',prev);
+  const changeAbs=total-prevTotal;
+  const changePct=prevTotal?Math.round(changeAbs/Math.abs(prevTotal)*100):0;
+  const prevLabel=prev?mnShort(months[curIdx-1]):'sin mes anterior';
 
+  // Card 1 — Total Patrimonio
   const nwTotEl=document.getElementById('nwTotal');
   nwTotEl.textContent=fmtUSD(total);
   nwTotEl.className='metric-value '+(total>=0?'pos':'neg');
-  const nwSub=document.getElementById('nwTotalSub');
-  if(prev&&prevTotal){const d=Math.round((total-prevTotal)/Math.abs(prevTotal)*100);nwSub.textContent=(d>=0?'+':'')+d+'% vs '+mnShort(months[curIdx-1]);nwSub.className='metric-sub '+(d>=0?'down':'up');}
-  const nwAssEl=document.getElementById('nwAssets');
-  nwAssEl.textContent=fmtUSD(assets);
-  nwAssEl.className='metric-value pos';
-  const nwLiabEl=document.getElementById('nwLiab');
-  nwLiabEl.textContent=fmtUSD(liab);
-  nwLiabEl.className='metric-value neg';
-  document.getElementById('nwAssetsSub').textContent=total?Math.round(assets/total*100)+'% del patrimonio':'';
-  document.getElementById('nwLiabSub').textContent=assets?Math.round(liab/assets*100)+'% de activos':'';
+  document.getElementById('nwTotalSub').textContent='';
 
-  // Evolution chart
+  // Card 2 — Cambio %
+  const nwPctEl=document.getElementById('nwChangePct');
+  if(prev&&prevTotal){
+    nwPctEl.textContent=(changePct>=0?'+':'')+changePct+'%';
+    nwPctEl.className='metric-value '+(changeAbs>=0?'pos':'neg');
+  }else{
+    nwPctEl.textContent='—';
+    nwPctEl.className='metric-value';
+  }
+  document.getElementById('nwChangePctSub').textContent='vs '+prevLabel;
+
+  // Card 3 — Cambio $
+  const nwAbsEl=document.getElementById('nwChangeAbs');
+  if(prev&&prevTotal){
+    const sign=changeAbs>=0?'+':'-';
+    nwAbsEl.textContent=sign+'$'+Math.round(Math.abs(changeAbs)).toLocaleString('en-US');
+    nwAbsEl.className='metric-value '+(changeAbs>=0?'pos':'neg');
+  }else{
+    nwAbsEl.textContent='—';
+    nwAbsEl.className='metric-value';
+  }
+  document.getElementById('nwChangeAbsSub').textContent='vs '+prevLabel;
+
+  // Stacked bar: assets above zero (4 categorías), Pasivos abajo del cero
   const fm2=getFilteredMonths();
-  const chartMs=fm2.slice(Math.max(0,fm2.length-14));
+  const chartMs=fm2.slice(Math.max(0,fm2.length-12));
   const chartKeys=chartMs.map(getNWMonthKey);
-  const chartData=chartKeys.map(ck=>ck?get('Total Patrimonio',ck):null);
-  const assetsData=chartKeys.map(ck=>ck?get('Activos',ck):null);
-  const liabData=chartKeys.map(ck=>ck?get('Pasivos',ck):null);
   const lbls=chartMs.map(mnShort);
+
+  const stackGroups=[
+    {label:'Activos líquidos',rows:['Wise','Citi','Galicia','Littio Card','Cash - USD'],totalKey:'Liquido',color:'#7BD5F5'},
+    {label:'Inversiones',rows:['Binance','eToro','StoneX'],totalKey:'Crypto, acciones y bonos',color:'#5E72EB'},
+    {label:'Inmuebles',rows:['Inmueble - Depto Libertador'],totalKey:'Inmueble - Depto Libertador',color:'#1F2F98'},
+    {label:'Participaciones y préstamos',rows:['Littio (Equity)','GreenLat','Littio (Pots)','Préstamo QUEM (Walter y Mati)'],totalKey:'Participación/Préstamos',color:'#FDC094'}
+  ];
+
+  const datasets=stackGroups.map(g=>({
+    label:g.label,
+    data:chartKeys.map(ck=>{
+      if(!ck)return 0;
+      const t=get(g.totalKey,ck);
+      if(t)return t;
+      return g.rows.reduce((s,r)=>s+get(r,ck),0);
+    }),
+    backgroundColor:g.color,
+    stack:'nw',
+    borderWidth:0
+  }));
+
+  datasets.push({
+    label:'Pasivos',
+    data:chartKeys.map(ck=>ck?-Math.abs(get('Pasivos',ck)):0),
+    backgroundColor:C_NEG,
+    stack:'nw',
+    borderWidth:0
+  });
 
   destroyChart('nw');
   charts.nw=new Chart(document.getElementById('nwChart'),{
-    type:'line',
-    data:{labels:lbls,datasets:[
-      {label:'Patrimonio neto',data:chartData,borderColor:'#1a1a1a',backgroundColor:'rgba(26,26,26,.06)',fill:true,tension:.3,pointRadius:3,pointBackgroundColor:'#1a1a1a',borderWidth:2},
-      {label:'Activos',data:assetsData,borderColor:C_POS,backgroundColor:'transparent',tension:.3,pointRadius:2,borderWidth:1.5,borderDash:[4,3]},
-      {label:'Pasivos',data:liabData,borderColor:C_NEG,backgroundColor:'transparent',tension:.3,pointRadius:2,borderWidth:1.5,borderDash:[4,3]}
-    ]},
+    type:'bar',
+    data:{labels:lbls,datasets},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{labels:{font:{size:11},boxWidth:10}},tooltip:{callbacks:{label:ctx=>' '+fmtUSD(ctx.raw)}}},
-      scales:{x:{ticks:{font:{size:10},maxRotation:0},grid:{display:false},border:{display:false}},y:{ticks:{font:{size:10},callback:v=>fmtShortUSD(v)},grid:{color:'rgba(0,0,0,.05)'},border:{display:false}}}}
+      plugins:{
+        legend:{position:'bottom',labels:{font:{size:11},boxWidth:10,padding:10}},
+        tooltip:{callbacks:{label:ctx=>' '+ctx.dataset.label+': '+fmtUSD(Math.abs(ctx.raw))}}
+      },
+      scales:{
+        x:{stacked:true,ticks:{font:{size:10},maxRotation:0},grid:{display:false},border:{display:false}},
+        y:{stacked:true,ticks:{font:{size:10},callback:v=>fmtShortUSD(v)},grid:{color:'rgba(0,0,0,.05)'},border:{display:false}}
+      }
+    }
   });
 
   // Breakdown
