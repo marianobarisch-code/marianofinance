@@ -194,10 +194,20 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 
 /* NW EDITOR */
 .nw-editor-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem 1.5rem;margin-bottom:1rem;}
+.nw-editor-header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
+.nw-editor-header-left{display:flex;align-items:center;gap:14px;flex-wrap:wrap;flex:1;min-width:0;}
+.nw-editor-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);}
+.nw-editor-alert{background:var(--amber-bg);color:var(--amber);padding:5px 10px;border-radius:var(--radius-sm);font-size:11px;font-weight:500;}
+.nw-editor-toggle{background:none;border:1px solid var(--border);padding:5px 14px;border-radius:14px;font-size:11px;color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;}
+.nw-editor-toggle:hover{border-color:rgba(0,0,0,.25);color:var(--text);}
+.nw-editor-body{margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);}
 .nw-editor-controls{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;margin-bottom:1rem;}
 .nw-editor-controls > .nw-edit-field{min-width:120px;}
 .nw-editor-controls .form-input{padding:7px 10px;font-size:13px;}
-.nw-editor-alert{flex:1;background:var(--amber-bg);color:var(--amber);padding:8px 12px;border-radius:var(--radius-sm);font-size:12px;font-weight:500;align-self:center;min-width:200px;}
+.nw-range-btns{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1rem;}
+.nw-range-btn{padding:5px 12px;font-size:11px;border:1px solid var(--border);background:var(--surface);color:var(--text2);border-radius:14px;cursor:pointer;font-family:'DM Sans',sans-serif;}
+.nw-range-btn:hover{border-color:rgba(0,0,0,.25);color:var(--text);}
+.nw-range-btn.active{background:var(--primary);color:#fff;border-color:var(--primary);}
 .nw-editor-readonly-banner{background:var(--blue-bg);color:var(--blue);padding:10px 14px;border-radius:var(--radius-sm);font-size:13px;margin-bottom:1rem;}
 .nw-editor-section{margin-bottom:1.1rem;}
 .nw-editor-section-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
@@ -336,36 +346,52 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
       </div>
     </div>
 
+    <div class="card">
+      <div class="card-title">Evolución del patrimonio (USD)</div>
+      <div class="nw-range-btns" id="nwRangeBtns">
+        <button class="nw-range-btn" data-range="current">Mes actual</button>
+        <button class="nw-range-btn" data-range="last3">Últimos 3</button>
+        <button class="nw-range-btn" data-range="last6">Últimos 6</button>
+        <button class="nw-range-btn active" data-range="last12">Últimos 12</button>
+        <button class="nw-range-btn" data-range="ytd">YTD</button>
+      </div>
+      <div style="position:relative;width:100%;height:240px;"><canvas id="nwChart"></canvas></div>
+    </div>
+
     <!-- NW EDITOR -->
     <div class="nw-editor-card">
-      <div class="nw-editor-controls">
-        <div class="nw-edit-field">
-          <label class="form-label">Mes</label>
-          <select class="form-input" id="nwEditMonth"></select>
+      <div class="nw-editor-header">
+        <div class="nw-editor-header-left">
+          <div class="nw-editor-title">Editar saldos del mes</div>
+          <div class="nw-editor-alert" id="nwEditorAlert" style="display:none"></div>
         </div>
-        <div class="nw-edit-field">
-          <label class="form-label">Año</label>
-          <select class="form-input" id="nwEditYear"></select>
-        </div>
-        <div class="nw-editor-alert" id="nwEditorAlert" style="display:none"></div>
+        <button class="nw-editor-toggle" id="nwEditorToggle" aria-expanded="false">Mostrar ▾</button>
       </div>
-      <div class="nw-editor-readonly-banner" id="nwEditorReadonlyBanner" style="display:none"></div>
-      <div id="nwEditorTable"></div>
-      <div class="nw-editor-footer">
-        <label class="nw-editor-show-inactive">
-          <input type="checkbox" id="nwEditorShowInactive"> Mostrar items inactivos (en cero los últimos 4 meses)
-        </label>
-        <div class="nw-editor-actions">
-          <span class="nw-editor-status" id="nwEditorStatus"></span>
-          <button class="btn-primary" id="nwEditorSubmit">Guardar saldos</button>
+      <div class="nw-editor-body" id="nwEditorBody" style="display:none;">
+        <div class="nw-editor-controls">
+          <div class="nw-edit-field">
+            <label class="form-label">Mes</label>
+            <select class="form-input" id="nwEditMonth"></select>
+          </div>
+          <div class="nw-edit-field">
+            <label class="form-label">Año</label>
+            <select class="form-input" id="nwEditYear"></select>
+          </div>
+        </div>
+        <div class="nw-editor-readonly-banner" id="nwEditorReadonlyBanner" style="display:none"></div>
+        <div id="nwEditorTable"></div>
+        <div class="nw-editor-footer">
+          <label class="nw-editor-show-inactive">
+            <input type="checkbox" id="nwEditorShowInactive"> Mostrar items inactivos (en cero los últimos 4 meses)
+          </label>
+          <div class="nw-editor-actions">
+            <span class="nw-editor-status" id="nwEditorStatus"></span>
+            <button class="btn-primary" id="nwEditorSubmit">Guardar saldos</button>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-title">Evolución del patrimonio (USD)</div>
-      <div style="position:relative;width:100%;height:240px;"><canvas id="nwChart"></canvas></div>
-    </div>
     <div class="nw-breakdown" id="nwBreakdown"></div>
   </div>
 
@@ -456,6 +482,7 @@ const NW_GROUPS=[
   {key:'pasivos',title:'Pasivos',items:['Provisión GreenLat','Provisión Alquiler'],color:'#c0392b',side:'liability',sheetTotalKey:'Pasivos'}
 ];
 const NW_CUTOFF='2026-05-01';
+let nwChartRange='last12';
 const nwMonthLabel=(y,m)=>NW_MONTHS_ES[m-1]+' '+String(y).slice(-2);
 const nwMonthIso=(y,m)=>y+'-'+String(m).padStart(2,'0')+'-01';
 const nwSlug=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
@@ -1019,8 +1046,19 @@ function renderNetWorth(k){
   document.getElementById('nwChangeAbsSub').textContent='vs '+prevLabel;
 
   // Stacked bar: assets above zero (4 categorías), Pasivos abajo del cero
-  const fm2=getFilteredMonths();
-  const chartMs=fm2.slice(Math.max(0,fm2.length-12));
+  let chartMs;
+  if(nwChartRange==='current'){
+    chartMs=[months[curIdx]];
+  }else if(nwChartRange==='last3'){
+    chartMs=months.slice(Math.max(0,curIdx-2),curIdx+1);
+  }else if(nwChartRange==='last6'){
+    chartMs=months.slice(Math.max(0,curIdx-5),curIdx+1);
+  }else if(nwChartRange==='ytd'){
+    const curYear=months[curIdx].split('-')[0];
+    chartMs=months.filter(m=>m.startsWith(curYear)&&m<=months[curIdx]);
+  }else{
+    chartMs=months.slice(Math.max(0,curIdx-11),curIdx+1);
+  }
   const chartKeys=chartMs.map(getNWMonthKey);
   const lbls=chartMs.map(mnShort);
 
@@ -1233,6 +1271,21 @@ async function nwEditorSubmit(){
     submitBtn.textContent='Guardar saldos';
   }
 }
+function nwEditorToggle(){
+  const body=document.getElementById('nwEditorBody');
+  const btn=document.getElementById('nwEditorToggle');
+  const open=body.style.display!=='none';
+  body.style.display=open?'none':'block';
+  btn.textContent=open?'Mostrar ▾':'Ocultar ▴';
+  btn.setAttribute('aria-expanded',String(!open));
+}
+function setNwChartRange(r){
+  nwChartRange=r;
+  document.querySelectorAll('#nwRangeBtns .nw-range-btn').forEach(b=>{
+    b.classList.toggle('active',b.dataset.range===r);
+  });
+  if(months.length)renderNetWorth(months[curIdx]);
+}
 function nwEditorInit(){
   if(!document.getElementById('nwEditMonth'))return;
   nwEditorPopulateDropdowns();
@@ -1241,6 +1294,10 @@ function nwEditorInit(){
     document.getElementById('nwEditYear').addEventListener('change',nwEditorRender);
     document.getElementById('nwEditorShowInactive').addEventListener('change',nwEditorRender);
     document.getElementById('nwEditorSubmit').addEventListener('click',nwEditorSubmit);
+    document.getElementById('nwEditorToggle').addEventListener('click',nwEditorToggle);
+    document.querySelectorAll('#nwRangeBtns .nw-range-btn').forEach(b=>{
+      b.addEventListener('click',()=>setNwChartRange(b.dataset.range));
+    });
     nwEditorInit._bound=true;
   }
   nwEditorRender();
