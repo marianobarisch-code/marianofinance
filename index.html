@@ -191,6 +191,27 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .fx-manual{margin-top:10px}
 .btn-link{background:none;border:none;color:var(--primary);font-size:13px;cursor:pointer;padding:6px 0;font-family:inherit;text-decoration:underline}
 .btn-link:hover{color:var(--primary-dark)}
+
+/* NW EDITOR */
+.nw-editor-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem 1.5rem;margin-bottom:1rem;}
+.nw-editor-controls{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;margin-bottom:1rem;}
+.nw-editor-controls > .nw-edit-field{min-width:120px;}
+.nw-editor-controls .form-input{padding:7px 10px;font-size:13px;}
+.nw-editor-alert{flex:1;background:var(--amber-bg);color:var(--amber);padding:8px 12px;border-radius:var(--radius-sm);font-size:12px;font-weight:500;align-self:center;min-width:200px;}
+.nw-editor-readonly-banner{background:var(--blue-bg);color:var(--blue);padding:10px 14px;border-radius:var(--radius-sm);font-size:13px;margin-bottom:1rem;}
+.nw-editor-section{margin-bottom:1.1rem;}
+.nw-editor-section-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
+.nw-editor-row{display:flex;justify-content:space-between;align-items:center;padding:6px 2px;border-bottom:1px solid var(--border);font-size:13px;gap:12px;}
+.nw-editor-row:last-child{border-bottom:none;}
+.nw-editor-row .nw-item-name{color:var(--text2);flex:1;min-width:0;}
+.nw-item-badge{font-size:10px;color:var(--text3);margin-left:6px;font-style:italic;}
+.nw-editor-row input{width:140px;padding:5px 9px;border:1px solid var(--border);border-radius:6px;font-family:'DM Mono',monospace;font-size:12px;text-align:right;background:#fff;}
+.nw-editor-row input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 2px rgba(94,114,235,.15);}
+.nw-editor-row input:disabled{background:var(--surface2);color:var(--text3);cursor:not-allowed;}
+.nw-editor-footer{display:flex;justify-content:space-between;align-items:center;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);flex-wrap:wrap;gap:12px;}
+.nw-editor-show-inactive{font-size:12px;color:var(--text2);display:flex;align-items:center;gap:6px;cursor:pointer;}
+.nw-editor-actions{display:flex;align-items:center;gap:12px;}
+.nw-editor-status{font-size:12px;font-weight:500;}
 </style>
 </head>
 <body>
@@ -314,6 +335,33 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
         <div class="metric-sub" id="nwChangeAbsSub">—</div>
       </div>
     </div>
+
+    <!-- NW EDITOR -->
+    <div class="nw-editor-card">
+      <div class="nw-editor-controls">
+        <div class="nw-edit-field">
+          <label class="form-label">Mes</label>
+          <select class="form-input" id="nwEditMonth"></select>
+        </div>
+        <div class="nw-edit-field">
+          <label class="form-label">Año</label>
+          <select class="form-input" id="nwEditYear"></select>
+        </div>
+        <div class="nw-editor-alert" id="nwEditorAlert" style="display:none"></div>
+      </div>
+      <div class="nw-editor-readonly-banner" id="nwEditorReadonlyBanner" style="display:none"></div>
+      <div id="nwEditorTable"></div>
+      <div class="nw-editor-footer">
+        <label class="nw-editor-show-inactive">
+          <input type="checkbox" id="nwEditorShowInactive"> Mostrar items inactivos (en cero los últimos 4 meses)
+        </label>
+        <div class="nw-editor-actions">
+          <span class="nw-editor-status" id="nwEditorStatus"></span>
+          <button class="btn-primary" id="nwEditorSubmit">Guardar saldos</button>
+        </div>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-title">Evolución del patrimonio (USD)</div>
       <div style="position:relative;width:100%;height:240px;"><canvas id="nwChart"></canvas></div>
@@ -398,6 +446,20 @@ const COLORS=['#5E72EB','#7BD5F5','#4ADEDE','#1CA7EC','#787FF6','#1F2F98','#CCAB
 const C_POS='#1a7a52',C_POS_BG='rgba(26,122,82,.7)',C_POS_TR='rgba(26,122,82,.4)';
 const C_NEG='#c0392b',C_NEG_BG='rgba(192,57,43,.6)',C_NEG_TR='rgba(192,57,43,.4)';
 const C_WARN='#92600a';
+// Net worth groups — single source of truth for items + categories
+const NW_MONTHS_ES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const NW_GROUPS=[
+  {key:'liquido',title:'Activos líquidos',items:['Wise','Citi','Galicia','Littio Card','Cash - USD'],color:'#7BD5F5',side:'asset',sheetTotalKey:'Liquido'},
+  {key:'inversiones',title:'Inversiones',items:['Binance','eToro','StoneX'],color:'#5E72EB',side:'asset',sheetTotalKey:'Crypto, acciones y bonos'},
+  {key:'inmuebles',title:'Inmuebles',items:['Inmueble - Depto Libertador'],color:'#1F2F98',side:'asset',sheetTotalKey:'Inmueble - Depto Libertador'},
+  {key:'participaciones',title:'Participaciones y préstamos',items:['Littio (Equity)','GreenLat','Littio (Pots)','Préstamo QUEM (Walter y Mati)'],color:'#FDC094',side:'asset',sheetTotalKey:'Participación/Préstamos'},
+  {key:'pasivos',title:'Pasivos',items:['Provisión GreenLat','Provisión Alquiler'],color:'#c0392b',side:'liability',sheetTotalKey:'Pasivos'}
+];
+const NW_CUTOFF='2026-05-01';
+const nwMonthLabel=(y,m)=>NW_MONTHS_ES[m-1]+' '+String(y).slice(-2);
+const nwMonthIso=(y,m)=>y+'-'+String(m).padStart(2,'0')+'-01';
+const nwSlug=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+let sbNwRows=[];
 // ===== Supabase config =====
 const SUPABASE_URL='https://afbhhtrbodflxvrjfwyf.supabase.co';
 const SUPABASE_ANON_KEY='sb_publishable_-kOChgUMkLSQmpJQ8WJ1VA_IR5RfylD';
@@ -451,6 +513,11 @@ async function fetchSupabaseExpenses(){
     return{id:r.id,date:new Date(y,m-1,d),name:(r.name||'').trim(),amt:parseFloat(r.amount)||0,amtUsd:parseFloat(r.amount_usd)||0,fx:parseFloat(r.ars_per_usd)||0,cat:(r.category||'').trim()};
   }).filter(r=>r.date&&!isNaN(r.date.getTime()));
 }
+async function fetchSupabaseNetWorth(){
+  const{data,error}=await sb.from('net_worth_balances').select('id,month_year,item_name,category,amount_usd').order('month_year',{ascending:true});
+  if(error)throw new Error('Supabase NW: '+error.message);
+  return data||[];
+}
 async function fetchBlueRate(){
   const res=await fetch('https://dolarapi.com/v1/dolares/blue');
   if(!res.ok)throw new Error('dolarapi respondió '+res.status);
@@ -461,17 +528,21 @@ async function fetchBlueRate(){
 async function loadData(){
   setStatus('Cargando...','loading');
   try{
-   const[varVals,balVals,nwVals,sbExpenses]=await Promise.all([
+   const[varVals,balVals,nwVals,sbExpenses,sbNw]=await Promise.all([
       fetchSheet('Variables!A:D'),
       fetchSheet("'Income and Expending'!A:BZ"),
       fetchSheet("'Net Worth'!A:BZ"),
-      fetchSupabaseExpenses()
+      fetchSupabaseExpenses(),
+      fetchSupabaseNetWorth()
     ]);
+    sbNwRows=sbNw;
     processVariables(varVals,sbExpenses);
     processBalance(balVals);
     processNetWorth(nwVals);
     overlaySupabaseVariables();
+    overlaySupabaseNetWorth();
     populatePickers();
+    nwEditorInit();
     render();
     // Debug info in console
     console.log('── DEBUG ──');
@@ -565,6 +636,48 @@ function overlaySupabaseVariables(){
     // Recalcular % Saved over Income
     const ingreso=get('Ingreso total');
     if(balData.rowMap['% Saved over Income'])balData.rowMap['% Saved over Income'][monthLabel]=ingreso>0?balance/ingreso:0;
+  }
+}
+
+function overlaySupabaseNetWorth(){
+  if(!nwData.rowMap)nwData.rowMap={};
+  if(!nwData.monthCols)nwData.monthCols={};
+  // Group Supabase rows by month
+  const byMonth={};
+  for(const r of sbNwRows){
+    if(!byMonth[r.month_year])byMonth[r.month_year]=[];
+    byMonth[r.month_year].push(r);
+  }
+  for(const monthIso in byMonth){
+    const[y,mm]=monthIso.split('-').map(Number);
+    const lbl=nwMonthLabel(y,mm);
+    // Ensure column exists
+    const exists=Object.values(nwData.monthCols).includes(lbl);
+    if(!exists){
+      nwData.monthCols['sb_'+monthIso.slice(0,7)]=lbl;
+    }
+    // Aggregate by category + write per-item values
+    const totals={liquido:0,inversiones:0,inmuebles:0,participaciones:0,pasivos:0};
+    for(const r of byMonth[monthIso]){
+      const amt=parseFloat(r.amount_usd)||0;
+      totals[r.category]=(totals[r.category]||0)+amt;
+      if(!nwData.rowMap[r.item_name])nwData.rowMap[r.item_name]={};
+      nwData.rowMap[r.item_name][lbl]=amt;
+    }
+    // Set category total rows (matching Sheets convention)
+    for(const g of NW_GROUPS){
+      if(!nwData.rowMap[g.sheetTotalKey])nwData.rowMap[g.sheetTotalKey]={};
+      nwData.rowMap[g.sheetTotalKey][lbl]=totals[g.key];
+    }
+    // Set Activos / Pasivos / Total Patrimonio
+    const activos=totals.liquido+totals.inversiones+totals.inmuebles+totals.participaciones;
+    const pasivos=totals.pasivos;
+    if(!nwData.rowMap['Activos'])nwData.rowMap['Activos']={};
+    if(!nwData.rowMap['Pasivos'])nwData.rowMap['Pasivos']={};
+    if(!nwData.rowMap['Total Patrimonio'])nwData.rowMap['Total Patrimonio']={};
+    nwData.rowMap['Activos'][lbl]=activos;
+    nwData.rowMap['Pasivos'][lbl]=pasivos;
+    nwData.rowMap['Total Patrimonio'][lbl]=activos-pasivos;
   }
 }
 
@@ -970,6 +1083,167 @@ function renderNetWorth(k){
     const tot=get(g.totalKey,mk2)||g.rows.reduce((s,l)=>s+get(l,mk2),0);
     return`<div class="nw-group"><div class="nw-group-title">${g.title}</div>${rowsHtml}<div class="nw-row total-row"><span class="nw-name">Total</span><span class="nw-val">${fmtUSD(tot)}</span></div></div>`;
   }).join('');
+}
+
+// ── NW EDITOR ─────────────────────────────────────────────────
+function nwIsItemInactive(itemName){
+  const today=new Date();
+  let zeroCount=0,totalCount=0;
+  for(let i=0;i<4;i++){
+    const d=new Date(today.getFullYear(),today.getMonth()-i,1);
+    const lbl=nwMonthLabel(d.getFullYear(),d.getMonth()+1);
+    const row=nwData.rowMap[itemName];
+    if(row&&(lbl in row)){
+      totalCount++;
+      if((row[lbl]||0)===0)zeroCount++;
+    }
+  }
+  return totalCount>=4&&zeroCount===4;
+}
+function nwMissingMonths(){
+  const today=new Date();
+  const cutoff=new Date(2026,4,1);
+  const result=[];
+  let d=new Date(cutoff);
+  while(d.getFullYear()<today.getFullYear()||(d.getFullYear()===today.getFullYear()&&d.getMonth()<today.getMonth())){
+    const iso=nwMonthIso(d.getFullYear(),d.getMonth()+1);
+    const has=sbNwRows.some(r=>r.month_year===iso);
+    if(!has)result.push({iso,label:nwMonthLabel(d.getFullYear(),d.getMonth()+1)});
+    d.setMonth(d.getMonth()+1);
+  }
+  return result;
+}
+function nwEditorPopulateDropdowns(){
+  const monthSel=document.getElementById('nwEditMonth');
+  const yearSel=document.getElementById('nwEditYear');
+  if(monthSel.options.length===0){
+    NW_MONTHS_ES.forEach((name,i)=>monthSel.appendChild(new Option(name,String(i+1))));
+  }
+  // Years from data + cutoff + current
+  const years=new Set([2026,new Date().getFullYear()]);
+  Object.values(nwData.monthCols||{}).forEach(lbl=>{
+    const m=lbl.match(/(\d{2})$/);
+    if(m)years.add(2000+parseInt(m[1]));
+  });
+  const sorted=[...years].sort();
+  const existing=[...yearSel.options].map(o=>parseInt(o.value));
+  const same=sorted.length===existing.length&&sorted.every((y,i)=>y===existing[i]);
+  if(!same){
+    const prev=yearSel.value;
+    yearSel.innerHTML='';
+    sorted.forEach(y=>yearSel.appendChild(new Option(String(y),String(y))));
+    if(prev&&sorted.includes(parseInt(prev)))yearSel.value=prev;
+  }
+  if(!monthSel.value){
+    const today=new Date();
+    monthSel.value=String(today.getMonth()+1);
+    yearSel.value=String(today.getFullYear());
+  }
+}
+function nwEditorRender(){
+  const monthSel=document.getElementById('nwEditMonth');
+  const yearSel=document.getElementById('nwEditYear');
+  if(!monthSel.value||!yearSel.value)return;
+  const year=parseInt(yearSel.value);
+  const month=parseInt(monthSel.value);
+  const lbl=nwMonthLabel(year,month);
+  const iso=nwMonthIso(year,month);
+  const isPostCutoff=iso>=NW_CUTOFF;
+
+  // Read-only banner
+  const banner=document.getElementById('nwEditorReadonlyBanner');
+  if(isPostCutoff){
+    banner.style.display='none';
+  }else{
+    banner.style.display='block';
+    banner.textContent='Modo solo lectura — '+lbl+' es histórico (Google Sheets). Editá desde la planilla.';
+  }
+
+  // Missing-month alert
+  const alertEl=document.getElementById('nwEditorAlert');
+  const missing=nwMissingMonths();
+  if(missing.length){
+    alertEl.style.display='block';
+    alertEl.textContent='⚠ Falta cargar: '+missing.map(m=>m.label).join(', ');
+  }else{
+    alertEl.style.display='none';
+  }
+
+  // Table
+  const showInactive=document.getElementById('nwEditorShowInactive').checked;
+  const tableEl=document.getElementById('nwEditorTable');
+  const html=NW_GROUPS.map(g=>{
+    const rowsHtml=g.items.map(item=>{
+      const inactive=nwIsItemInactive(item);
+      if(inactive&&!showInactive)return '';
+      const v=(nwData.rowMap[item]||{})[lbl];
+      const valStr=(v!==undefined&&v!==null&&!isNaN(v))?(Math.round(v*100)/100):'';
+      const dis=isPostCutoff?'':'disabled';
+      const badge=inactive?'<span class="nw-item-badge">inactivo</span>':'';
+      return '<div class="nw-editor-row"><span class="nw-item-name">'+item+badge+'</span><input type="number" id="nw-input-'+nwSlug(item)+'" data-item="'+item.replace(/"/g,'&quot;')+'" data-cat="'+g.key+'" value="'+valStr+'" step="0.01" placeholder="—" '+dis+'></div>';
+    }).filter(Boolean).join('');
+    if(!rowsHtml)return '';
+    return '<div class="nw-editor-section"><div class="nw-editor-section-title" style="color:'+g.color+'">'+g.title+'</div>'+rowsHtml+'</div>';
+  }).filter(Boolean).join('');
+  tableEl.innerHTML=html;
+
+  // Submit button state
+  const submitBtn=document.getElementById('nwEditorSubmit');
+  submitBtn.disabled=!isPostCutoff;
+  submitBtn.textContent=isPostCutoff?'Guardar saldos':'Solo lectura';
+}
+async function nwEditorSubmit(){
+  const monthSel=document.getElementById('nwEditMonth');
+  const yearSel=document.getElementById('nwEditYear');
+  const year=parseInt(yearSel.value);
+  const month=parseInt(monthSel.value);
+  const iso=nwMonthIso(year,month);
+  if(iso<NW_CUTOFF){alert('No se pueden editar meses pre-cutoff (anteriores a Mayo 26).');return;}
+
+  const inputs=document.querySelectorAll('#nwEditorTable input[data-item]');
+  const rows=[];
+  for(const inp of inputs){
+    const item=inp.dataset.item;
+    const cat=inp.dataset.cat;
+    const raw=inp.value.trim();
+    const amount=raw===''?0:parseFloat(raw);
+    if(!isFinite(amount)||amount<0){
+      alert('Valor inválido para "'+item+'". Tiene que ser un número >= 0.');
+      return;
+    }
+    rows.push({month_year:iso,item_name:item,category:cat,amount_usd:amount});
+  }
+
+  const submitBtn=document.getElementById('nwEditorSubmit');
+  const statusEl=document.getElementById('nwEditorStatus');
+  submitBtn.disabled=true;
+  submitBtn.textContent='Guardando...';
+  statusEl.textContent='';
+  try{
+    const{error}=await sb.from('net_worth_balances').upsert(rows,{onConflict:'month_year,item_name'});
+    if(error)throw new Error(error.message);
+    statusEl.textContent='✓ Guardado';
+    statusEl.style.color='var(--green)';
+    await loadData();
+    setTimeout(()=>{statusEl.textContent='';},3000);
+  }catch(err){
+    statusEl.textContent='✗ '+err.message;
+    statusEl.style.color='var(--red)';
+    submitBtn.disabled=false;
+    submitBtn.textContent='Guardar saldos';
+  }
+}
+function nwEditorInit(){
+  if(!document.getElementById('nwEditMonth'))return;
+  nwEditorPopulateDropdowns();
+  if(!nwEditorInit._bound){
+    document.getElementById('nwEditMonth').addEventListener('change',nwEditorRender);
+    document.getElementById('nwEditYear').addEventListener('change',nwEditorRender);
+    document.getElementById('nwEditorShowInactive').addEventListener('change',nwEditorRender);
+    document.getElementById('nwEditorSubmit').addEventListener('click',nwEditorSubmit);
+    nwEditorInit._bound=true;
+  }
+  nwEditorRender();
 }
 
 // ── INSIGHTS TAB ──────────────────────────────────────────────
