@@ -192,6 +192,42 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .btn-link{background:none;border:none;color:var(--primary);font-size:13px;cursor:pointer;padding:6px 0;font-family:inherit;text-decoration:underline}
 .btn-link:hover{color:var(--primary-dark)}
 
+
+/* BUDGET SUB-TABS */
+.budget-subtabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:1.25rem;}
+.budget-subtab{padding:.55rem 1.1rem;font-size:12px;font-weight:500;color:var(--text3);background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;font-family:'DM Sans',sans-serif;}
+.budget-subtab:hover{color:var(--text2);}
+.budget-subtab.active{color:var(--text);border-bottom-color:var(--primary);}
+.budget-subpanel{display:none;}
+.budget-subpanel.active{display:block;}
+
+/* FIXED EXPENSES TABLE */
+.fixed-table-wrap{overflow-x:auto;margin-bottom:1rem;}
+.fixed-table{width:100%;border-collapse:collapse;font-size:12px;min-width:700px;}
+.fixed-table th{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;padding:8px 10px;text-align:center;border-bottom:2px solid var(--border);background:var(--surface2);position:sticky;top:0;}
+.fixed-table th:first-child{text-align:left;min-width:160px;}
+.fixed-table td{padding:6px 8px;text-align:center;border-bottom:1px solid var(--border);vertical-align:middle;}
+.fixed-table td:first-child{text-align:left;font-weight:500;color:var(--text);}
+.fixed-table tr.sub-toggle td:first-child{cursor:pointer;color:var(--primary);font-weight:600;}
+.fixed-table tr.sub-item td:first-child{padding-left:24px;font-weight:400;color:var(--text2);font-size:11px;}
+.fixed-table tr.sub-item{display:none;}
+.fixed-table tr.sub-item.visible{display:table-row;}
+.fixed-table .cell-input{width:90px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:'DM Mono',monospace;text-align:right;background:#fff;}
+.fixed-table .cell-input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 2px rgba(94,114,235,.15);}
+.fixed-table .cell-date{width:110px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:'DM Mono',monospace;background:#fff;}
+.fixed-table .cell-date:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 2px rgba(94,114,235,.15);}
+.fixed-table .pay-cell{display:flex;align-items:center;gap:6px;justify-content:center;}
+.fixed-table .pay-check{width:16px;height:16px;cursor:pointer;accent-color:var(--green);}
+.fixed-table .pay-date-input{width:100px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;font-size:10px;font-family:'DM Mono',monospace;background:#fff;display:none;}
+.fixed-table .pay-date-input.visible{display:inline-block;}
+.fixed-table .pay-date-show{font-size:10px;font-family:'DM Mono',monospace;color:var(--green);font-weight:500;}
+.sem-gray{background:var(--surface2);}
+.sem-yellow{background:#fff9e6;}
+.sem-orange{background:#fff3e0;}
+.sem-red{background:#fdf0ee;}
+.sem-green{background:var(--green-bg);}
+.fixed-total-row td{font-weight:700;background:var(--surface2);border-top:2px solid var(--border);}
+
 /* NW EDITOR */
 .nw-editor-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem 1.5rem;margin-bottom:1rem;}
 .nw-editor-header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
@@ -291,6 +327,11 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 
   <!-- TAB: BUDGET -->
   <div class="tab-panel" id="tab-budget">
+    <div class="budget-subtabs">
+      <button class="budget-subtab active" data-bsub="home">Home</button>
+      <button class="budget-subtab" data-bsub="fijos">Gastos Fijos</button>
+    </div>
+    <div class="budget-subpanel active" id="bsub-home">
     <div class="metrics-grid-3">
       <div class="metric-card">
         <div class="metric-label">Total gastado (ARS)</div>
@@ -324,6 +365,19 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
     <button class="edit-toggle" id="toggleBudgets" style="margin-left:8px">Editar presupuestos</button>
     <div class="budget-editor" id="budgetEditor"><div class="editor-grid" id="editorGrid"></div></div>
     <div class="budgets-grid" id="budgetsGrid"></div>
+    </div><!-- end bsub-home -->
+    <div class="budget-subpanel" id="bsub-fijos">
+      <div class="card">
+        <div class="card-title">Gastos Fijos — <span id="fixedMonthLabel"></span></div>
+        <div class="fixed-table-wrap">
+          <table class="fixed-table" id="fixedTable"></table>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:12px;">
+          <span id="fixedStatus" style="font-size:12px;font-weight:500;align-self:center;"></span>
+          <button class="btn-primary" id="fixedSaveBtn">Guardar cambios</button>
+        </div>
+      </div>
+    </div><!-- end bsub-fijos -->
   </div>
 
   <!-- TAB: NET WORTH -->
@@ -487,11 +541,30 @@ const nwMonthLabel=(y,m)=>NW_MONTHS_ES[m-1]+' '+String(y).slice(-2);
 const nwMonthIso=(y,m)=>y+'-'+String(m).padStart(2,'0')+'-01';
 const nwSlug=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 let sbNwRows=[];
+// ===== Fixed Expenses config =====
+const FIXED_ITEMS=['Expensas Diaz Velez','Gas','Internet Casa','Alarma Verisure','Movistar','Seguro','Patente','Swiss Medical','Megatlon'];
+const SUBSCRIPTIONS=[
+  {name:'Netflix',amount:10,currency:'USD'},
+  {name:'Youtube Premium',amount:5,currency:'USD'},
+  {name:'Claude',amount:100,currency:'USD'},
+  {name:'Amazon Prime',amount:0,currency:'USD'},
+  {name:'iCloud',amount:3,currency:'USD'},
+  {name:'Chat GPT Plus',amount:8,currency:'USD'},
+  {name:'Google One',amount:2,currency:'USD'},
+  {name:'Tabs',amount:2,currency:'USD'},
+  {name:'Pedidos Ya+',amount:5000,currency:'ARS'},
+  {name:'Monotributo',amount:447346,currency:'ARS'},
+  {name:'Meli+',amount:3500,currency:'ARS'},
+  {name:'HBO',amount:8200,currency:'ARS'}
+];
+const EXTRA_CATEGORIES=['Viajes','Ropa','Regalos','Salud','Electr\u00f3nica','Otros'];
+const EXTRA_SUBCATS_VIAJES=['Pasajes','Hospedaje','Comidas','Caf\u00e9','Ropa','Compras varias','Restaurantes','Actividad f\u00edsica','Transportes'];
+let fixedRows=[];
 // ===== Supabase config =====
 const SUPABASE_URL='https://afbhhtrbodflxvrjfwyf.supabase.co';
 const SUPABASE_ANON_KEY='sb_publishable_-kOChgUMkLSQmpJQ8WJ1VA_IR5RfylD';
 const CUTOFF_DATE='2026-05-01'; // desde esta fecha (inclusive) los gastos viven en Supabase
-const CATEGORIES=['Planes Amigos','Uber/Taxis','Planes Maria','Salud','Comidas','Café','Delivery','Estética','Actividad Física','Auto','Supermercados','Hogar','Planes Familia','Otros','Ropa','Suplementos','Eventos','Mascotas'];
+const CATEGORIES=['Planes Amigos','Uber/Taxis','Planes Maria','Salud','Comidas','Café','Delivery','Estética','Actividad Física','Auto','Supermercados','Hogar','Planes Familia','Otros','Ropa','Suplementos','Eventos','Mascotas','Extraordinary'];
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 
 const fmtUSD=v=>'$'+Math.round(v).toLocaleString('en-US');
@@ -552,21 +625,29 @@ async function fetchBlueRate(){
   if(typeof j.compra!=='number'||typeof j.venta!=='number')throw new Error('respuesta inválida de dolarapi');
   return(j.compra+j.venta)/2;
 }
+async function fetchFixedExpenses(){
+  const{data,error}=await sb.from('fixed_expenses').select('*').order('month_year',{ascending:true});
+  if(error)throw new Error('Supabase fixed: '+error.message);
+  return data||[];
+}
 async function loadData(){
   setStatus('Cargando...','loading');
   try{
-   const[varVals,balVals,nwVals,sbExpenses,sbNw]=await Promise.all([
+   const[varVals,balVals,nwVals,sbExpenses,sbNw,sbFixed]=await Promise.all([
       fetchSheet('Variables!A:D'),
       fetchSheet("'Income and Expending'!A:BZ"),
       fetchSheet("'Net Worth'!A:BZ"),
       fetchSupabaseExpenses(),
-      fetchSupabaseNetWorth()
+      fetchSupabaseNetWorth(),
+      fetchFixedExpenses()
     ]);
     sbNwRows=sbNw;
+    fixedRows=sbFixed;
     processVariables(varVals,sbExpenses);
     processBalance(balVals);
     processNetWorth(nwVals);
     overlaySupabaseVariables();
+    overlayFixedExpenses();
     overlaySupabaseNetWorth();
     populatePickers();
     nwEditorInit();
@@ -651,11 +732,14 @@ function overlaySupabaseVariables(){
     if(monthStart<cutoff)continue;
     // Es post-cutoff: recalcular Variables en USD desde varRows
     const monthKey=year+'-'+String(monthIdx+1).padStart(2,'0');
-    const variablesUsd=varRows.filter(r=>mk(r.date)===monthKey).reduce((s,r)=>s+(r.amtUsd||0),0);
+    const variablesUsd=varRows.filter(r=>mk(r.date)===monthKey&&r.cat!=='Extraordinary').reduce((s,r)=>s+(r.amtUsd||0),0);
+    const extraUsd=varRows.filter(r=>mk(r.date)===monthKey&&r.cat==='Extraordinary').reduce((s,r)=>s+(r.amtUsd||0),0);
+    if(balData.rowMap['Extraordinary Expenses'])balData.rowMap['Extraordinary Expenses'][monthLabel]=extraUsd;
+    else{balData.rowMap['Extraordinary Expenses']={};balData.rowMap['Extraordinary Expenses'][monthLabel]=extraUsd;}
     const get=lbl=>balData.rowMap[lbl]?balData.rowMap[lbl][monthLabel]||0:0;
     if(balData.rowMap['Variables'])balData.rowMap['Variables'][monthLabel]=variablesUsd;
     // Recalcular Egresos = Alquiler + Fijos + Variables (USD calculado) + Viajes y Gastos especiales
-    const egresos=get('Alquiler')+get('Fijos')+variablesUsd+get('Viajes y Gastos especiales');
+    const egresos=get('Alquiler')+get('Fijos')+variablesUsd+get('Extraordinary Expenses');
     if(balData.rowMap['Egresos'])balData.rowMap['Egresos'][monthLabel]=egresos;
     // Recalcular Balance = Ingreso total - Egresos
     const balance=get('Ingreso total')-egresos;
@@ -663,6 +747,27 @@ function overlaySupabaseVariables(){
     // Recalcular % Saved over Income
     const ingreso=get('Ingreso total');
     if(balData.rowMap['% Saved over Income'])balData.rowMap['% Saved over Income'][monthLabel]=ingreso>0?balance/ingreso:0;
+  }
+}
+
+function overlayFixedExpenses(){
+  if(!balData.rowMap||!balData.monthCols||!fixedRows.length)return;
+  const cutoff=new Date(CUTOFF_DATE+'T00:00:00');
+  for(const[col,monthLabel]of Object.entries(balData.monthCols)){
+    const m=monthLabel.match(/^(\w+)\s+(\d{2})$/i);
+    if(!m)continue;
+    const monthNames=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const monthIdx=monthNames.indexOf(m[1].toLowerCase());
+    if(monthIdx<0)continue;
+    const year=2000+parseInt(m[2]);
+    const monthStart=new Date(year,monthIdx,1);
+    if(monthStart<cutoff)continue;
+    const iso=year+'-'+String(monthIdx+1).padStart(2,'0')+'-01';
+    const monthFixed=fixedRows.filter(r=>r.month_year===iso);
+    if(!monthFixed.length)continue;
+    const totalUsd=monthFixed.reduce((s,r)=>s+(parseFloat(r.amount_usd)||0),0);
+    if(!balData.rowMap['Fijos'])balData.rowMap['Fijos']={};
+    balData.rowMap['Fijos'][monthLabel]=totalUsd;
   }
 }
 
@@ -790,6 +895,7 @@ function render(){
   if(mSel&&ySel){mSel.value=parseInt(m);ySel.value=y;}
   renderBalance(k);
   renderBudget(k);
+  renderFixed(k);
   renderNetWorth(k);
   renderInsights(k);
 }
@@ -890,7 +996,7 @@ function renderBalance(k){
     {label:'Alquiler',keys:[],mainKey:'Alquiler'},
     {label:'Fijos',keys:[],mainKey:'Fijos'},
     {label:'Variables',keys:[],mainKey:'Variables'},
-    {label:'Viajes y Gastos especiales',keys:[],mainKey:'Viajes y Gastos especiales'},
+    {label:'Extraordinary Expenses',keys:[],mainKey:'Extraordinary Expenses'},
     {label:'Gastos Wedding',keys:[],mainKey:'Gastos Wedding'},
   ];
   const recentMonths=last.slice(-4);
@@ -922,7 +1028,8 @@ function renderBalance(k){
 }
 
 // ── BUDGET TAB ────────────────────────────────────────────────
-function monthVarData(k){return varRows.filter(r=>mk(r.date)===k);}
+function monthVarData(k){return varRows.filter(r=>mk(r.date)===k&&r.cat!=='Extraordinary');}
+function monthExtraData(k){return varRows.filter(r=>mk(r.date)===k&&r.cat==='Extraordinary');}
 function groupByCat(rows){const m={};rows.forEach(r=>{m[r.cat]=(m[r.cat]||0)+r.amt;});return m;}
 
 function renderBudget(k){
@@ -986,6 +1093,138 @@ function renderEditor(cats){
   document.getElementById('editorGrid').innerHTML=cats.map(cat=>
     `<div class="editor-row"><label title="${cat}">${cat}</label><input type="number" value="${budgets[cat]||0}" onchange="budgets['${cat}']=parseInt(this.value)||0;render();"></div>`
   ).join('');
+}
+
+
+// ── FIXED EXPENSES (sub-tab) ──────────────────────────────────
+function renderFixed(k){
+  const[y,m]=k.split('-');
+  const iso=y+'-'+m+'-01';
+  const mNames=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  document.getElementById('fixedMonthLabel').textContent=mNames[+m-1]+' '+y;
+  const today=new Date();
+  const getRow=(name)=>fixedRows.find(r=>r.month_year===iso&&r.item_name===name);
+
+  let html='<thead><tr><th>\u00cdtem</th><th>Vencimiento</th><th>Monto (ARS)</th><th>Estado de pago</th></tr></thead><tbody>';
+  let totalArs=0;
+
+  FIXED_ITEMS.forEach(item=>{
+    const row=getRow(item);
+    const dueDate=row?row.due_date||'':'';
+    const amount=row?parseFloat(row.amount)||0:0;
+    const paidDate=row?row.paid_date||'':'';
+    const isPaid=!!paidDate;
+    const semClass=getSemaphore(dueDate,isPaid,today);
+    totalArs+=amount;
+    html+='<tr class="'+semClass+'">';
+    html+='<td>'+item+'</td>';
+    html+='<td><input type="date" class="cell-date" data-item="'+item+'" data-field="due_date" value="'+dueDate+'"></td>';
+    html+='<td><input type="number" class="cell-input" data-item="'+item+'" data-field="amount" value="'+(amount||'')+'" step="0.01" placeholder="0"></td>';
+    html+='<td><div class="pay-cell">';
+    html+='<input type="checkbox" class="pay-check" data-item="'+item+'" '+(isPaid?'checked':'')+'>';
+    html+='<input type="date" class="pay-date-input '+(isPaid?'visible':'')+'" data-item="'+item+'" data-field="paid_date" value="'+paidDate+'">';
+    if(isPaid)html+='<span class="pay-date-show">'+paidDate+'</span>';
+    html+='</div></td></tr>';
+  });
+
+  // Suscripciones toggle
+  const subsTotal=SUBSCRIPTIONS.reduce((s,sub)=>{
+    const row=getRow(sub.name);
+    if(row)return s+(parseFloat(row.amount_ars)||0);
+    if(sub.currency==='USD'){const lastFx=fixedRows.find(r=>r.ars_per_usd>0);const fx=lastFx?parseFloat(lastFx.ars_per_usd):1400;return s+sub.amount*fx;}
+    return s+sub.amount;
+  },0);
+  totalArs+=subsTotal;
+
+  html+='<tr class="sub-toggle" id="subsToggleRow"><td>\u25b6 Suscripciones</td><td colspan="2" style="text-align:right;font-family:\'DM Mono\',monospace;font-weight:600;">'+fmtARS(subsTotal)+'</td><td style="text-align:center;font-size:10px;color:var(--text3);">D\u00e9bito autom\u00e1tico</td></tr>';
+
+  SUBSCRIPTIONS.forEach(sub=>{
+    const row=getRow(sub.name);
+    const amt=row?parseFloat(row.amount)||0:sub.amount;
+    const cur=row?row.currency||sub.currency:sub.currency;
+    html+='<tr class="sub-item" data-sub="true">';
+    html+='<td>'+sub.name+' <span style="font-size:10px;color:var(--text3);">('+cur+')</span></td>';
+    html+='<td style="text-align:center;color:var(--text3);font-size:10px;">\u2014</td>';
+    html+='<td><input type="number" class="cell-input" data-item="'+sub.name+'" data-field="amount" data-currency="'+cur+'" value="'+(amt||'')+'" step="0.01" placeholder="0"></td>';
+    html+='<td style="text-align:center;font-size:10px;color:var(--text3);">Auto</td></tr>';
+  });
+
+  html+='<tr class="fixed-total-row"><td>TOTAL</td><td></td><td style="text-align:right;font-family:\'DM Mono\',monospace;">'+fmtARS(totalArs)+'</td><td></td></tr>';
+  html+='</tbody>';
+  document.getElementById('fixedTable').innerHTML=html;
+
+  // Wire checkbox
+  document.querySelectorAll('#fixedTable .pay-check').forEach(cb=>{
+    cb.onchange=function(){
+      const dateInput=this.closest('.pay-cell').querySelector('.pay-date-input');
+      if(this.checked){
+        dateInput.classList.add('visible');
+        if(!dateInput.value){const t=new Date();dateInput.value=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');}
+      }else{dateInput.classList.remove('visible');dateInput.value='';}
+      const tr=this.closest('tr');
+      const dueInput=tr.querySelector('[data-field="due_date"]');
+      tr.className=getSemaphore(dueInput?dueInput.value:'',this.checked,new Date());
+    };
+  });
+  // Wire due_date change
+  document.querySelectorAll('#fixedTable [data-field="due_date"]').forEach(inp=>{
+    inp.onchange=function(){
+      const tr=this.closest('tr');const cb=tr.querySelector('.pay-check');
+      tr.className=getSemaphore(this.value,cb?cb.checked:false,new Date());
+    };
+  });
+  // Toggle subs
+  const toggleRow=document.getElementById('subsToggleRow');
+  if(toggleRow){toggleRow.onclick=function(){
+    const open=this.querySelector('td').textContent.startsWith('\u25bc');
+    this.querySelector('td').textContent=(open?'\u25b6':'\u25bc')+' Suscripciones';
+    document.querySelectorAll('#fixedTable tr.sub-item').forEach(tr=>tr.classList.toggle('visible',!open));
+  };}
+}
+
+function getSemaphore(dueDate,isPaid,today){
+  if(isPaid)return 'sem-green';
+  if(!dueDate)return 'sem-gray';
+  const due=new Date(dueDate+'T00:00:00');
+  const diff=Math.ceil((due-today)/(1000*60*60*24));
+  if(diff<=1)return 'sem-red';
+  if(diff<=3)return 'sem-orange';
+  return 'sem-yellow';
+}
+
+async function saveFixedExpenses(){
+  const k=months[curIdx];const[y,m]=k.split('-');const iso=y+'-'+m+'-01';
+  const btn=document.getElementById('fixedSaveBtn');const status=document.getElementById('fixedStatus');
+  btn.disabled=true;btn.textContent='Guardando...';status.textContent='';
+  let currentFx=1400;
+  try{currentFx=await fetchBlueRate();}catch(e){const last=fixedRows.find(r=>r.ars_per_usd>0);if(last)currentFx=parseFloat(last.ars_per_usd);}
+  const rows=[];
+  // Fixed items
+  document.querySelectorAll('#fixedTable tbody tr:not(.sub-toggle):not(.sub-item):not(.fixed-total-row)').forEach(tr=>{
+    const amtInput=tr.querySelector('[data-field="amount"]');if(!amtInput)return;
+    const item=amtInput.dataset.item;if(!item)return;
+    const amount=parseFloat(amtInput.value)||0;
+    const dueInput=tr.querySelector('[data-field="due_date"]');
+    const paidInput=tr.querySelector('[data-field="paid_date"]');
+    const cb=tr.querySelector('.pay-check');
+    rows.push({month_year:iso,item_name:item,category:'fijo',amount:amount,currency:'ARS',ars_per_usd:currentFx,amount_ars:amount,amount_usd:currentFx>0?Math.round(amount/currentFx*100)/100:0,due_date:dueInput?dueInput.value||null:null,paid_date:(cb&&cb.checked&&paidInput)?paidInput.value||null:null,is_auto_pay:false});
+  });
+  // Subscriptions
+  document.querySelectorAll('#fixedTable tr.sub-item').forEach(tr=>{
+    const amtInput=tr.querySelector('[data-field="amount"]');if(!amtInput)return;
+    const item=amtInput.dataset.item;const cur=amtInput.dataset.currency||'ARS';
+    const amount=parseFloat(amtInput.value)||0;
+    const amountArs=cur==='USD'?amount*currentFx:amount;
+    const amountUsd=cur==='USD'?amount:(currentFx>0?amount/currentFx:0);
+    rows.push({month_year:iso,item_name:item,category:'suscripcion',amount:amount,currency:cur,ars_per_usd:currentFx,amount_ars:Math.round(amountArs*100)/100,amount_usd:Math.round(amountUsd*100)/100,due_date:null,paid_date:null,is_auto_pay:true});
+  });
+  try{
+    const{error}=await sb.from('fixed_expenses').upsert(rows,{onConflict:'month_year,item_name'});
+    if(error)throw new Error(error.message);
+    status.textContent='\u2713 Guardado';status.style.color='var(--green)';
+    await loadData();setTimeout(()=>{status.textContent='';},3000);
+  }catch(err){status.textContent='\u2717 '+err.message;status.style.color='var(--red)';
+  }finally{btn.disabled=false;btn.textContent='Guardar cambios';}
 }
 
 // ── NET WORTH TAB ─────────────────────────────────────────────
@@ -1652,6 +1891,236 @@ exSubmitBtn.onclick=async()=>{
     exSubmitBtn.textContent=isEdit?'Guardar cambios':'Guardar gasto';
   }
 };
+
+// ── BUDGET SUB-TABS ───────────────────────────────────────────
+document.querySelectorAll('.budget-subtab').forEach(btn=>{
+  btn.onclick=()=>{
+    document.querySelectorAll('.budget-subtab').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.budget-subpanel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('bsub-'+btn.dataset.bsub).classList.add('active');
+  };
+});
+document.getElementById('fixedSaveBtn').onclick=saveFixedExpenses;
+
+// ── EXTRAORDINARY: modify modal for subcategories ─────────────
+(function(){
+  // Add subcategory row to modal
+  const modalBody=document.querySelector('#addExpenseModal .modal-body');
+  const subCatRow=document.createElement('div');
+  subCatRow.className='form-row';
+  subCatRow.id='exSubCatRow';
+  subCatRow.style.display='none';
+  subCatRow.innerHTML=`<label class="form-label">Subcategoría</label>
+    <div class="combobox" id="exSubCatCombo">
+      <input type="text" class="form-input" id="exSubCatInput" placeholder="Seleccioná subcategoría..." autocomplete="off">
+      <div class="combobox-list" id="exSubCatList"></div>
+    </div>`;
+  const catRow=document.querySelector('#exCatCombo').closest('.form-row');
+  catRow.after(subCatRow);
+
+  // Add currency display for extraordinary
+  const curRow=document.createElement('div');
+  curRow.className='form-row';
+  curRow.id='exCurrencyRow';
+  curRow.style.display='none';
+  curRow.innerHTML=`<label class="form-label">Moneda</label><div style="font-size:13px;color:var(--text2);padding:8px 0;">USD (los gastos extraordinarios se registran en dólares)</div>`;
+  const amtRow=document.querySelector('#exAmount').closest('.form-row-split');
+  amtRow.before(curRow);
+
+  let exSubCatSelected='';
+
+  // Override category list mousedown to detect Extraordinary
+  exCatList.onmousedown=function(e){
+    const item=e.target.closest('.combobox-item');
+    if(!item)return;
+    e.preventDefault();
+    const cat=item.dataset.cat;
+    exCatInput.value=cat;
+    exCatSelected=cat;
+    exCatCombo.classList.remove('open');
+    handleExtraCatChange(cat);
+  };
+
+  function handleExtraCatChange(cat){
+    if(cat==='Extraordinary'){
+      subCatRow.style.display='block';
+      curRow.style.display='block';
+      renderSubCats(EXTRA_CATEGORIES);
+      exSubCatSelected='';
+      document.getElementById('exSubCatInput').value='';
+    }else{
+      subCatRow.style.display='none';
+      curRow.style.display='none';
+    }
+  }
+
+  function renderSubCats(list){
+    document.getElementById('exSubCatList').innerHTML=list.map(c=>`<div class="combobox-item" data-cat="${c}">${c}</div>`).join('');
+  }
+
+  const subInput=document.getElementById('exSubCatInput');
+  const subCombo=document.getElementById('exSubCatCombo');
+  const subList=document.getElementById('exSubCatList');
+
+  subInput.onfocus=()=>{subCombo.classList.add('open');
+    if(exSubCatSelected==='Viajes')renderSubCats(EXTRA_SUBCATS_VIAJES);
+    else renderSubCats(EXTRA_CATEGORIES);
+  };
+  subInput.oninput=()=>{subCombo.classList.add('open');exSubCatSelected='';
+    const q=normStr(subInput.value);
+    const allOpts=[...EXTRA_CATEGORIES,...EXTRA_SUBCATS_VIAJES];
+    const matches=q?allOpts.filter(c=>normStr(c).includes(q)):EXTRA_CATEGORIES;
+    renderSubCats(matches);
+  };
+  subInput.onblur=()=>{setTimeout(()=>subCombo.classList.remove('open'),150);};
+
+  subList.onmousedown=function(e){
+    const item=e.target.closest('.combobox-item');
+    if(!item)return;
+    e.preventDefault();
+    const cat=item.dataset.cat;
+    if(cat==='Viajes'){
+      exSubCatSelected=cat;
+      subInput.value=cat+' → ';
+      renderSubCats(EXTRA_SUBCATS_VIAJES);
+      subCombo.classList.add('open');
+    }else{
+      exSubCatSelected=cat;
+      subInput.value=cat;
+      subCombo.classList.remove('open');
+    }
+  };
+
+  // Patch submit to handle extraordinary
+  const origSubmitHandler=exSubmitBtn.onclick;
+  exSubmitBtn.onclick=async function(){
+    exErrorEl.textContent='';
+    const cat=exCatSelected||exCatInput.value.trim();
+
+    if(cat==='Extraordinary'){
+      const name=exNameEl.value.trim();
+      const date=exDateEl.value;
+      const amount=parseFloat(exAmountEl.value);
+      if(!exSubCatSelected){exErrorEl.textContent='Elegí una subcategoría.';return;}
+      if(!name){exErrorEl.textContent='Falta el nombre.';return;}
+      if(!date){exErrorEl.textContent='Falta la fecha.';return;}
+      if(date<CUTOFF_DATE){exErrorEl.textContent='La fecha debe ser '+CUTOFF_DATE+' o posterior.';return;}
+      if(!(amount>0)){exErrorEl.textContent='El monto debe ser mayor a 0.';return;}
+      let fx=exCurrentFx;
+      if(!fx||fx<=0){
+        try{fx=await fetchBlueRate();exCurrentFx=fx;}catch(e){
+          exErrorEl.textContent='Necesito el TC. Reintentá o ingresá manual.';return;
+        }
+      }
+      const amount_usd=amount;
+      const amount_ars=amount*fx;
+      const isEdit=!!exEditingId;
+      exSubmitBtn.disabled=true;
+      exSubmitBtn.textContent='Guardando...';
+      try{
+        const payload={date,name,amount:amount_ars,category:'Extraordinary',ars_per_usd:fx,amount_usd,subcategory:exSubCatSelected,is_extraordinary:true,currency:'USD'};
+        if(isEdit){
+          const{error}=await sb.from('expenses').update(payload).eq('id',exEditingId);
+          if(error)throw new Error(error.message);
+        }else{
+          const{error}=await sb.from('expenses').insert(payload);
+          if(error)throw new Error(error.message);
+        }
+        exCloseModal();
+        await loadData();
+        if(currentDetailCat)openDetail(currentDetailCat);
+      }catch(err){exErrorEl.textContent='Error: '+err.message;}
+      finally{exSubmitBtn.disabled=false;exSubmitBtn.textContent=isEdit?'Guardar cambios':'Guardar gasto';}
+    }else{
+      origSubmitHandler.call(this);
+    }
+  };
+
+  // Reset extraordinary fields when modal closes
+  const origCloseModal=exCloseModal;
+  exCloseModal=function(){
+    subCatRow.style.display='none';
+    curRow.style.display='none';
+    exSubCatSelected='';
+    origCloseModal();
+  };
+  document.getElementById('addExpenseClose').onclick=exCloseModal;
+  document.getElementById('exCancel').onclick=exCloseModal;
+  exModal.onclick=e=>{if(e.target===exModal)exCloseModal();};
+})();
+
+// ── BUDGET SUB-TABS ───────────────────────────────────────────
+document.querySelectorAll('.budget-subtab').forEach(btn=>{
+  btn.onclick=()=>{
+    document.querySelectorAll('.budget-subtab').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.budget-subpanel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('bsub-'+btn.dataset.bsub).classList.add('active');
+  };
+});
+document.getElementById('fixedSaveBtn').onclick=saveFixedExpenses;
+
+// ── EXTRAORDINARY MODAL EXTENSION ─────────────────────────────
+(function(){
+  const modalBody=document.querySelector('#addExpenseModal .modal-body');
+  const subCatRow=document.createElement('div');
+  subCatRow.className='form-row';subCatRow.id='exSubCatRow';subCatRow.style.display='none';
+  subCatRow.innerHTML='<label class="form-label">Subcategor\u00eda</label><div class="combobox" id="exSubCatCombo"><input type="text" class="form-input" id="exSubCatInput" placeholder="Selecci\u00f3n\u00e1 subcategor\u00eda..." autocomplete="off"><div class="combobox-list" id="exSubCatList"></div></div>';
+  const catRow=document.querySelector('#exCatCombo').closest('.form-row');
+  catRow.after(subCatRow);
+  const curRow=document.createElement('div');curRow.className='form-row';curRow.id='exCurrencyRow';curRow.style.display='none';
+  curRow.innerHTML='<label class="form-label">Moneda</label><div style="font-size:13px;color:var(--text2);padding:8px 0;">USD (los gastos extraordinarios se registran en d\u00f3lares)</div>';
+  const amtRow=document.querySelector('#exAmount').closest('.form-row-split');
+  amtRow.before(curRow);
+  let exSubCatSelected='';
+
+  exCatList.onmousedown=function(e){
+    const item=e.target.closest('.combobox-item');if(!item)return;e.preventDefault();
+    const cat=item.dataset.cat;exCatInput.value=cat;exCatSelected=cat;exCatCombo.classList.remove('open');
+    if(cat==='Extraordinary'){subCatRow.style.display='block';curRow.style.display='block';renderSC(EXTRA_CATEGORIES);exSubCatSelected='';document.getElementById('exSubCatInput').value='';}
+    else{subCatRow.style.display='none';curRow.style.display='none';}
+  };
+  function renderSC(list){document.getElementById('exSubCatList').innerHTML=list.map(c=>'<div class="combobox-item" data-cat="'+c+'">'+c+'</div>').join('');}
+  const scIn=document.getElementById('exSubCatInput'),scCombo=document.getElementById('exSubCatCombo'),scList=document.getElementById('exSubCatList');
+  scIn.onfocus=()=>{scCombo.classList.add('open');renderSC(exSubCatSelected==='Viajes'?EXTRA_SUBCATS_VIAJES:EXTRA_CATEGORIES);};
+  scIn.oninput=()=>{scCombo.classList.add('open');exSubCatSelected='';const q=normStr(scIn.value);const all=[...EXTRA_CATEGORIES,...EXTRA_SUBCATS_VIAJES];renderSC(q?all.filter(c=>normStr(c).includes(q)):EXTRA_CATEGORIES);};
+  scIn.onblur=()=>{setTimeout(()=>scCombo.classList.remove('open'),150);};
+  scList.onmousedown=function(e){
+    const item=e.target.closest('.combobox-item');if(!item)return;e.preventDefault();
+    const cat=item.dataset.cat;
+    if(cat==='Viajes'){exSubCatSelected=cat;scIn.value='Viajes \u2192 ';renderSC(EXTRA_SUBCATS_VIAJES);scCombo.classList.add('open');}
+    else{exSubCatSelected=cat;scIn.value=cat;scCombo.classList.remove('open');}
+  };
+
+  const origSubmit=exSubmitBtn.onclick;
+  exSubmitBtn.onclick=async function(){
+    exErrorEl.textContent='';
+    const cat=exCatSelected||exCatInput.value.trim();
+    if(cat==='Extraordinary'){
+      const name=exNameEl.value.trim(),date=exDateEl.value,amount=parseFloat(exAmountEl.value);
+      if(!exSubCatSelected){exErrorEl.textContent='Eleg\u00ed una subcategor\u00eda.';return;}
+      if(!name){exErrorEl.textContent='Falta el nombre.';return;}
+      if(!date){exErrorEl.textContent='Falta la fecha.';return;}
+      if(date<CUTOFF_DATE){exErrorEl.textContent='Fecha debe ser '+CUTOFF_DATE+' o posterior.';return;}
+      if(!(amount>0)){exErrorEl.textContent='Monto debe ser mayor a 0.';return;}
+      let fx=exCurrentFx;if(!fx||fx<=0){try{fx=await fetchBlueRate();exCurrentFx=fx;}catch(e){exErrorEl.textContent='Necesito el TC.';return;}}
+      exSubmitBtn.disabled=true;exSubmitBtn.textContent='Guardando...';
+      try{
+        const payload={date,name,amount:amount*fx,category:'Extraordinary',ars_per_usd:fx,amount_usd:amount,subcategory:exSubCatSelected,is_extraordinary:true,currency:'USD'};
+        if(exEditingId){const{error}=await sb.from('expenses').update(payload).eq('id',exEditingId);if(error)throw new Error(error.message);}
+        else{const{error}=await sb.from('expenses').insert(payload);if(error)throw new Error(error.message);}
+        exCloseModal();await loadData();if(currentDetailCat)openDetail(currentDetailCat);
+      }catch(err){exErrorEl.textContent='Error: '+err.message;}
+      finally{exSubmitBtn.disabled=false;exSubmitBtn.textContent=exEditingId?'Guardar cambios':'Guardar gasto';}
+    }else{origSubmit.call(this);}
+  };
+  const origClose=exCloseModal;
+  exCloseModal=function(){subCatRow.style.display='none';curRow.style.display='none';exSubCatSelected='';origClose();};
+  document.getElementById('addExpenseClose').onclick=exCloseModal;
+  document.getElementById('exCancel').onclick=exCloseModal;
+  exModal.onclick=e=>{if(e.target===exModal)exCloseModal();};
+})();
 </script>
 </body>
 </html>
