@@ -212,13 +212,24 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 
 /* FIXED EXPENSES TABLE */
 .fixed-table-wrap{overflow-x:auto;margin-bottom:1rem;}
-.fixed-table{width:100%;border-collapse:collapse;font-size:12px;min-width:700px;}
-.fixed-table th{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;padding:8px 10px;text-align:center;border-bottom:2px solid var(--border);background:var(--surface2);position:sticky;top:0;}
-.fixed-table th:first-child{text-align:left;min-width:160px;}
-.fixed-table td{padding:6px 8px;text-align:center;border-bottom:1px solid var(--border);vertical-align:middle;}
+.fixed-table{width:100%;border-collapse:collapse;font-size:13px;min-width:680px;}
+.fixed-table th{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;padding:10px 12px;text-align:center;border-bottom:2px solid var(--border);background:var(--surface2);position:sticky;top:0;}
+.fixed-table th:first-child{text-align:left;min-width:170px;}
+.fixed-table td{padding:9px 10px;text-align:center;border-bottom:1px solid var(--border);vertical-align:middle;}
 .fixed-table td:first-child{text-align:left;font-weight:500;color:var(--text);}
 .fixed-table tr.sub-toggle td:first-child{cursor:pointer;color:var(--primary);font-weight:600;}
-.fixed-table tr.sub-item td:first-child{padding-left:24px;font-weight:400;color:var(--text2);font-size:11px;}
+.fixed-table tr.sub-item td:first-child{padding-left:28px;font-weight:400;color:var(--text2);font-size:12px;}
+.fixed-read-amt{font-family:'DM Mono',monospace;font-weight:500;color:var(--text);font-size:13px;}
+.fixed-read-amt-zero{font-family:'DM Mono',monospace;color:var(--text3);font-size:13px;}
+.fixed-read-due{font-family:'DM Mono',monospace;font-size:12px;color:var(--text2);}
+.fixed-read-due-empty{color:var(--text3);font-size:12px;}
+.fixed-pay-pill{display:inline-block;font-size:11px;padding:3px 9px;border-radius:10px;font-weight:500;}
+.fixed-header-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+.fixed-header-bar .card-title{margin:0;}
+.fixed-edit-btn{font-size:12px;color:var(--primary);background:none;border:1px solid var(--primary);cursor:pointer;padding:5px 14px;border-radius:6px;font-family:'DM Sans',sans-serif;font-weight:500;}
+.fixed-edit-btn:hover{background:var(--primary-bg);}
+.fixed-cancel-btn{font-size:12px;color:var(--text2);background:none;border:1px solid var(--border);cursor:pointer;padding:6px 14px;border-radius:6px;font-family:'DM Sans',sans-serif;font-weight:500;}
+.fixed-cancel-btn:hover{background:var(--surface2);}
 .fixed-table tr.sub-item{display:none;}
 .fixed-table tr.sub-item.visible{display:table-row;}
 .fixed-table .cell-input{width:90px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:'DM Mono',monospace;text-align:right;background:#fff;}
@@ -381,12 +392,16 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
     </div><!-- end bsub-home -->
     <div class="budget-subpanel" id="bsub-fijos">
       <div class="card">
-        <div class="card-title">Gastos Fijos — <span id="fixedMonthLabel"></span></div>
+        <div class="fixed-header-bar">
+          <div class="card-title">Gastos Fijos — <span id="fixedMonthLabel"></span></div>
+          <button class="fixed-edit-btn" id="fixedEditBtn">Editar</button>
+        </div>
         <div class="fixed-table-wrap">
           <table class="fixed-table" id="fixedTable"></table>
         </div>
-        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:12px;">
+        <div id="fixedActionsRow" style="display:none;justify-content:flex-end;gap:10px;margin-top:12px;align-items:center;">
           <span id="fixedStatus" style="font-size:12px;font-weight:500;align-self:center;"></span>
+          <button class="fixed-cancel-btn" id="fixedCancelBtn">Cancelar</button>
           <button class="btn-primary" id="fixedSaveBtn">Guardar cambios</button>
         </div>
       </div>
@@ -1131,6 +1146,36 @@ function renderEditor(cats){
 
 
 // ── FIXED EXPENSES (sub-tab) ──────────────────────────────────
+let fixedEditMode=false;
+function fmtDueRead(d){
+  if(!d)return '<span class="fixed-read-due-empty">—</span>';
+  const p=d.split('-');
+  if(p.length!==3)return d;
+  return '<span class="fixed-read-due">'+p[2]+'/'+p[1]+'/'+p[0].slice(2)+'</span>';
+}
+function fmtAmtRead(amount,currency){
+  if(!amount||amount===0)return '<span class="fixed-read-amt-zero">'+(currency||'ARS')+' 0</span>';
+  if(currency==='USD'){
+    const v=Number(amount).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+    return '<span class="fixed-read-amt">USD '+v+'</span>';
+  }
+  return '<span class="fixed-read-amt">ARS '+Math.round(amount).toLocaleString('es-AR')+'</span>';
+}
+function fmtPayPillRead(dueDate,isPaid,paidDate,today){
+  if(isPaid){
+    const p=(paidDate||'').split('-');
+    const lbl=p.length===3?'Pagado · '+p[2]+'/'+p[1]:'Pagado';
+    return '<span class="fixed-pay-pill" style="background:var(--green-bg);color:var(--green);">'+lbl+'</span>';
+  }
+  if(!dueDate)return '<span class="fixed-pay-pill" style="background:var(--surface2);color:var(--text3);">Sin fecha</span>';
+  const due=new Date(dueDate+'T00:00:00');
+  const diff=Math.ceil((due-today)/(1000*60*60*24));
+  if(diff<0)return '<span class="fixed-pay-pill" style="background:#fdf0ee;color:var(--red);">Vencido</span>';
+  if(diff<=1)return '<span class="fixed-pay-pill" style="background:#fdf0ee;color:var(--red);">Vence hoy</span>';
+  if(diff<=3)return '<span class="fixed-pay-pill" style="background:#fff3e0;color:var(--amber);">En '+diff+' días</span>';
+  return '<span class="fixed-pay-pill" style="background:#fff9e6;color:var(--amber);">En '+diff+' días</span>';
+}
+
 function renderFixed(k){
   const[y,m]=k.split('-');
   const iso=y+'-'+m+'-01';
@@ -1138,8 +1183,14 @@ function renderFixed(k){
   document.getElementById('fixedMonthLabel').textContent=mNames[+m-1]+' '+y;
   const today=new Date();
   const getRow=(name)=>fixedRows.find(r=>r.month_year===iso&&r.item_name===name);
+  const editing=fixedEditMode;
 
-  let html='<thead><tr><th>\u00cdtem</th><th>Vencimiento</th><th>Monto (ARS)</th><th>Estado de pago</th></tr></thead><tbody>';
+  const editBtn=document.getElementById('fixedEditBtn');
+  const actionsRow=document.getElementById('fixedActionsRow');
+  if(editBtn)editBtn.style.display=editing?'none':'inline-block';
+  if(actionsRow)actionsRow.style.display=editing?'flex':'none';
+
+  let html='<thead><tr><th>Ítem</th><th>Vencimiento</th><th>Monto</th><th>Estado de pago</th></tr></thead><tbody>';
   let totalArs=0;
 
   FIXED_ITEMS.forEach(item=>{
@@ -1150,18 +1201,24 @@ function renderFixed(k){
     const isPaid=!!paidDate;
     const semClass=getSemaphore(dueDate,isPaid,today);
     totalArs+=amount;
-    html+='<tr class="'+semClass+'">';
+    html+='<tr class="'+(editing?semClass:'')+'">';
     html+='<td>'+item+'</td>';
-    html+='<td><input type="date" class="cell-date" data-item="'+item+'" data-field="due_date" value="'+dueDate+'"></td>';
-    html+='<td><input type="number" class="cell-input" data-item="'+item+'" data-field="amount" value="'+(amount||'')+'" step="0.01" placeholder="0"></td>';
-    html+='<td><div class="pay-cell">';
-    html+='<input type="checkbox" class="pay-check" data-item="'+item+'" '+(isPaid?'checked':'')+'>';
-    html+='<input type="date" class="pay-date-input '+(isPaid?'visible':'')+'" data-item="'+item+'" data-field="paid_date" value="'+paidDate+'">';
-    if(isPaid)html+='<span class="pay-date-show">'+paidDate+'</span>';
-    html+='</div></td></tr>';
+    if(editing){
+      html+='<td><input type="date" class="cell-date" data-item="'+item+'" data-field="due_date" value="'+dueDate+'"></td>';
+      html+='<td><input type="number" class="cell-input" data-item="'+item+'" data-field="amount" value="'+(amount||'')+'" step="0.01" placeholder="0"></td>';
+      html+='<td><div class="pay-cell">';
+      html+='<input type="checkbox" class="pay-check" data-item="'+item+'" '+(isPaid?'checked':'')+'>';
+      html+='<input type="date" class="pay-date-input '+(isPaid?'visible':'')+'" data-item="'+item+'" data-field="paid_date" value="'+paidDate+'">';
+      if(isPaid)html+='<span class="pay-date-show">'+paidDate+'</span>';
+      html+='</div></td>';
+    }else{
+      html+='<td>'+fmtDueRead(dueDate)+'</td>';
+      html+='<td style="text-align:right;">'+fmtAmtRead(amount,'ARS')+'</td>';
+      html+='<td>'+fmtPayPillRead(dueDate,isPaid,paidDate,today)+'</td>';
+    }
+    html+='</tr>';
   });
 
-  // Suscripciones toggle
   const subsTotal=SUBSCRIPTIONS.reduce((s,sub)=>{
     const row=getRow(sub.name);
     if(row)return s+(parseFloat(row.amount_ars)||0);
@@ -1170,48 +1227,51 @@ function renderFixed(k){
   },0);
   totalArs+=subsTotal;
 
-  html+='<tr class="sub-toggle" id="subsToggleRow"><td>\u25b6 Suscripciones</td><td colspan="2" style="text-align:right;font-family:\'DM Mono\',monospace;font-weight:600;">'+fmtARS(subsTotal)+'</td><td style="text-align:center;font-size:10px;color:var(--text3);">D\u00e9bito autom\u00e1tico</td></tr>';
+  html+='<tr class="sub-toggle" id="subsToggleRow"><td>▶ Suscripciones</td><td colspan="2" style="text-align:right;">'+fmtAmtRead(subsTotal,'ARS')+'</td><td style="text-align:center;font-size:11px;color:var(--text3);">Débito automático</td></tr>';
 
   SUBSCRIPTIONS.forEach(sub=>{
     const row=getRow(sub.name);
     const amt=row?parseFloat(row.amount)||0:sub.amount;
     const cur=row?row.currency||sub.currency:sub.currency;
     html+='<tr class="sub-item" data-sub="true">';
-    html+='<td>'+sub.name+' <span style="font-size:10px;color:var(--text3);">('+cur+')</span></td>';
-    html+='<td style="text-align:center;color:var(--text3);font-size:10px;">\u2014</td>';
-    html+='<td><input type="number" class="cell-input" data-item="'+sub.name+'" data-field="amount" data-currency="'+cur+'" value="'+(amt||'')+'" step="0.01" placeholder="0"></td>';
-    html+='<td style="text-align:center;font-size:10px;color:var(--text3);">Auto</td></tr>';
+    html+='<td>'+sub.name+'</td>';
+    html+='<td style="text-align:center;color:var(--text3);font-size:11px;">—</td>';
+    if(editing){
+      html+='<td><input type="number" class="cell-input" data-item="'+sub.name+'" data-field="amount" data-currency="'+cur+'" value="'+(amt||'')+'" step="0.01" placeholder="0"></td>';
+    }else{
+      html+='<td style="text-align:right;">'+fmtAmtRead(amt,cur)+'</td>';
+    }
+    html+='<td style="text-align:center;font-size:11px;color:var(--text3);">Auto</td></tr>';
   });
 
-  html+='<tr class="fixed-total-row"><td>TOTAL</td><td></td><td style="text-align:right;font-family:\'DM Mono\',monospace;">'+fmtARS(totalArs)+'</td><td></td></tr>';
+  html+='<tr class="fixed-total-row"><td>TOTAL</td><td></td><td style="text-align:right;">'+fmtAmtRead(totalArs,'ARS')+'</td><td></td></tr>';
   html+='</tbody>';
   document.getElementById('fixedTable').innerHTML=html;
 
-  // Wire checkbox
-  document.querySelectorAll('#fixedTable .pay-check').forEach(cb=>{
-    cb.onchange=function(){
-      const dateInput=this.closest('.pay-cell').querySelector('.pay-date-input');
-      if(this.checked){
-        dateInput.classList.add('visible');
-        if(!dateInput.value){const t=new Date();dateInput.value=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');}
-      }else{dateInput.classList.remove('visible');dateInput.value='';}
-      const tr=this.closest('tr');
-      const dueInput=tr.querySelector('[data-field="due_date"]');
-      tr.className=getSemaphore(dueInput?dueInput.value:'',this.checked,new Date());
-    };
-  });
-  // Wire due_date change
-  document.querySelectorAll('#fixedTable [data-field="due_date"]').forEach(inp=>{
-    inp.onchange=function(){
-      const tr=this.closest('tr');const cb=tr.querySelector('.pay-check');
-      tr.className=getSemaphore(this.value,cb?cb.checked:false,new Date());
-    };
-  });
-  // Toggle subs
+  if(editing){
+    document.querySelectorAll('#fixedTable .pay-check').forEach(cb=>{
+      cb.onchange=function(){
+        const dateInput=this.closest('.pay-cell').querySelector('.pay-date-input');
+        if(this.checked){
+          dateInput.classList.add('visible');
+          if(!dateInput.value){const t=new Date();dateInput.value=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');}
+        }else{dateInput.classList.remove('visible');dateInput.value='';}
+        const tr=this.closest('tr');
+        const dueInput=tr.querySelector('[data-field="due_date"]');
+        tr.className=getSemaphore(dueInput?dueInput.value:'',this.checked,new Date());
+      };
+    });
+    document.querySelectorAll('#fixedTable [data-field="due_date"]').forEach(inp=>{
+      inp.onchange=function(){
+        const tr=this.closest('tr');const cb=tr.querySelector('.pay-check');
+        tr.className=getSemaphore(this.value,cb?cb.checked:false,new Date());
+      };
+    });
+  }
   const toggleRow=document.getElementById('subsToggleRow');
   if(toggleRow){toggleRow.onclick=function(){
-    const open=this.querySelector('td').textContent.startsWith('\u25bc');
-    this.querySelector('td').textContent=(open?'\u25b6':'\u25bc')+' Suscripciones';
+    const open=this.querySelector('td').textContent.startsWith('▼');
+    this.querySelector('td').textContent=(open?'▶':'▼')+' Suscripciones';
     document.querySelectorAll('#fixedTable tr.sub-item').forEach(tr=>tr.classList.toggle('visible',!open));
   };}
 }
@@ -1256,10 +1316,18 @@ async function saveFixedExpenses(){
     const{error}=await sb.from('fixed_expenses').upsert(rows,{onConflict:'month_year,item_name'});
     if(error)throw new Error(error.message);
     status.textContent='\u2713 Guardado';status.style.color='var(--green)';
+    fixedEditMode=false;
     await loadData();setTimeout(()=>{status.textContent='';},3000);
   }catch(err){status.textContent='\u2717 '+err.message;status.style.color='var(--red)';
   }finally{btn.disabled=false;btn.textContent='Guardar cambios';}
 }
+
+document.addEventListener('DOMContentLoaded',function(){
+  const editBtn=document.getElementById('fixedEditBtn');
+  const cancelBtn=document.getElementById('fixedCancelBtn');
+  if(editBtn)editBtn.onclick=function(){fixedEditMode=true;if(months&&months.length)renderFixed(months[curIdx]);};
+  if(cancelBtn)cancelBtn.onclick=function(){fixedEditMode=false;if(months&&months.length)renderFixed(months[curIdx]);};
+});
 
 // ── NET WORTH TAB ─────────────────────────────────────────────
 function getNWMonthKey(k){
