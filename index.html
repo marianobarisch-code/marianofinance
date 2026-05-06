@@ -328,7 +328,7 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
   <!-- TAB: BUDGET -->
   <div class="tab-panel" id="tab-budget">
     <div class="budget-subtabs">
-      <button class="budget-subtab active" data-bsub="home">Home</button>
+      <button class="budget-subtab active" data-bsub="home">Gasto Variable</button>
       <button class="budget-subtab" data-bsub="fijos">Gastos Fijos</button>
     </div>
     <div class="budget-subpanel active" id="bsub-home">
@@ -365,6 +365,10 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
     <button class="edit-toggle" id="toggleBudgets" style="margin-left:8px">Editar presupuestos</button>
     <div class="budget-editor" id="budgetEditor"><div class="editor-grid" id="editorGrid"></div></div>
     <div class="budgets-grid" id="budgetsGrid"></div>
+    <div class="card" style="margin-top:1.5rem;">
+      <div class="card-title">Gastos del mes — <span id="monthExpensesLabel"></span> <span style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none">— ordenados de más reciente a más antiguo</span></div>
+      <div id="monthExpensesList"></div>
+    </div>
     </div><!-- end bsub-home -->
     <div class="budget-subpanel" id="bsub-fijos">
       <div class="card">
@@ -1087,6 +1091,25 @@ function renderBudget(k){
   }).join('');
 
   renderEditor(sorted.map(([c])=>c));
+  renderMonthExpensesList(k);
+}
+
+function renderMonthExpensesList(k){
+  const all=varRows.filter(r=>mk(r.date)===k).sort((a,b)=>b.date-a.date);
+  const lblEl=document.getElementById('monthExpensesLabel');
+  const listEl=document.getElementById('monthExpensesList');
+  if(!lblEl||!listEl)return;
+  lblEl.textContent=mnName(k)+' ('+all.length+')';
+  if(!all.length){
+    listEl.innerHTML='<div style="padding:1rem;text-align:center;color:var(--text3);font-size:13px;">Sin gastos este mes</div>';
+    return;
+  }
+  listEl.innerHTML=all.map(r=>{
+    const acts=r.id?`<div class="txn-actions"><button class="txn-action-btn" data-act="edit" data-id="${r.id}" title="Editar">✏</button><button class="txn-action-btn danger" data-act="del" data-id="${r.id}" title="Borrar">🗑</button></div>`:'';
+    const catColor=catColorMap[r.cat]||'#888';
+    const catBadge=`<span style="font-size:10px;color:${catColor};background:${catColor}1a;padding:2px 6px;border-radius:4px;margin-right:8px;font-weight:500;">${r.cat}</span>`;
+    return `<div class="txn-item"><span class="txn-name">${catBadge}${r.name}</span><span class="txn-date">${fmtDay(r.date)}</span><span class="txn-amt">${fmtARS(r.amt)}</span>${acts}</div>`;
+  }).join('');
 }
 
 function renderEditor(cats){
@@ -1652,6 +1675,25 @@ document.getElementById('txnList').onclick=async e=>{
       if(error)throw new Error(error.message);
       await loadData();
       if(currentDetailCat)openDetail(currentDetailCat);
+    }catch(err){alert('Error al borrar: '+err.message);btn.disabled=false;}
+  }
+};
+document.getElementById('monthExpensesList').onclick=async e=>{
+  const btn=e.target.closest('.txn-action-btn');
+  if(!btn)return;
+  const id=btn.dataset.id;
+  const act=btn.dataset.act;
+  const row=varRows.find(r=>r.id===id);
+  if(!row){alert('No encuentro ese gasto.');return;}
+  if(act==='edit'){
+    exOpenModal(row);
+  }else if(act==='del'){
+    if(!confirm('¿Borrar el gasto "'+row.name+'" de '+fmtARS(row.amt)+'? No se puede deshacer.'))return;
+    btn.disabled=true;
+    try{
+      const{error}=await sb.from('expenses').delete().eq('id',id);
+      if(error)throw new Error(error.message);
+      await loadData();
     }catch(err){alert('Error al borrar: '+err.message);btn.disabled=false;}
   }
 };
