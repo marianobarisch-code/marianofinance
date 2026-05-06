@@ -143,6 +143,15 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .txn-action-btn{background:none;border:none;cursor:pointer;padding:3px 6px;border-radius:4px;font-size:13px;color:var(--text3);line-height:1;}
 .txn-action-btn:hover{background:#e8e6e0;color:var(--text1);}
 .txn-action-btn.danger:hover{color:var(--red);}
+.month-exp-card{max-width:780px;}
+.month-exp-row{display:grid;grid-template-columns:64px 1fr 110px 130px 56px;gap:10px;align-items:center;padding:7px 10px;font-size:13px;border-bottom:1px solid var(--border);}
+.month-exp-row:nth-child(even){background:var(--surface2);}
+.month-exp-row.month-exp-head{background:transparent;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text3);letter-spacing:.04em;padding:6px 10px;border-bottom:2px solid var(--border);}
+.month-exp-date{font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);}
+.month-exp-name{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.month-exp-amt{font-family:'DM Mono',monospace;font-weight:500;text-align:right;}
+.month-exp-cat-badge{display:inline-block;font-size:10px;padding:2px 7px;border-radius:4px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+.month-exp-actions{display:flex;justify-content:flex-end;gap:2px;}
 
 /* SAVINGS BAR */
 .savings-bar-wrap{margin-top:1rem;}
@@ -365,8 +374,8 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
     <button class="edit-toggle" id="toggleBudgets" style="margin-left:8px">Editar presupuestos</button>
     <div class="budget-editor" id="budgetEditor"><div class="editor-grid" id="editorGrid"></div></div>
     <div class="budgets-grid" id="budgetsGrid"></div>
-    <div class="card" style="margin-top:1.5rem;">
-      <div class="card-title">Gastos del mes — <span id="monthExpensesLabel"></span> <span style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none">— ordenados de más reciente a más antiguo</span></div>
+    <div class="card month-exp-card" style="margin-top:1.5rem;">
+      <div class="card-title">Gastos del mes — <span id="monthExpensesLabel"></span> <span style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none">— más reciente arriba</span></div>
       <div id="monthExpensesList"></div>
     </div>
     </div><!-- end bsub-home -->
@@ -1104,12 +1113,14 @@ function renderMonthExpensesList(k){
     listEl.innerHTML='<div style="padding:1rem;text-align:center;color:var(--text3);font-size:13px;">Sin gastos este mes</div>';
     return;
   }
-  listEl.innerHTML=all.map(r=>{
-    const acts=r.id?`<div class="txn-actions"><button class="txn-action-btn" data-act="edit" data-id="${r.id}" title="Editar">✏</button><button class="txn-action-btn danger" data-act="del" data-id="${r.id}" title="Borrar">🗑</button></div>`:'';
+  const header=`<div class="month-exp-row month-exp-head"><div>Fecha</div><div>Ítem</div><div style="text-align:right;">Monto</div><div>Categoría</div><div></div></div>`;
+  const rows=all.map(r=>{
+    const acts=r.id?`<div class="month-exp-actions"><button class="txn-action-btn" data-act="edit" data-id="${r.id}" title="Editar">✏</button><button class="txn-action-btn danger" data-act="del" data-id="${r.id}" title="Borrar">🗑</button></div>`:'<div class="month-exp-actions"></div>';
     const catColor=catColorMap[r.cat]||'#888';
-    const catBadge=`<span style="font-size:10px;color:${catColor};background:${catColor}1a;padding:2px 6px;border-radius:4px;margin-right:8px;font-weight:500;">${r.cat}</span>`;
-    return `<div class="txn-item"><span class="txn-name">${catBadge}${r.name}</span><span class="txn-date">${fmtDay(r.date)}</span><span class="txn-amt">${fmtARS(r.amt)}</span>${acts}</div>`;
+    const catBadge=`<span class="month-exp-cat-badge" style="color:${catColor};background:${catColor}1a;">${r.cat}</span>`;
+    return `<div class="month-exp-row"><div class="month-exp-date">${fmtDay(r.date)}</div><div class="month-exp-name" title="${r.name.replace(/"/g,'&quot;')}">${r.name}</div><div class="month-exp-amt">${fmtARS(r.amt)}</div><div>${catBadge}</div>${acts}</div>`;
   }).join('');
+  listEl.innerHTML=header+rows;
 }
 
 function renderEditor(cats){
