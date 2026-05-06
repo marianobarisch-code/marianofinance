@@ -230,6 +230,12 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .fixed-edit-btn:hover{background:var(--primary-bg);}
 .fixed-cancel-btn{font-size:12px;color:var(--text2);background:none;border:1px solid var(--border);cursor:pointer;padding:6px 14px;border-radius:6px;font-family:'DM Sans',sans-serif;font-weight:500;}
 .fixed-cancel-btn:hover{background:var(--surface2);}
+.bal-cell-input{width:90px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:'DM Mono',monospace;text-align:right;background:#fff;color:var(--text);}
+.bal-cell-input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 2px rgba(94,114,235,.15);}
+.bal-cell-input.saving{border-color:var(--amber);}
+.bal-cell-input.saved{border-color:var(--green);}
+.bal-cell-input.errored{border-color:var(--red);}
+.bal-cell-edit-hint{font-size:10px;color:var(--text3);margin-left:6px;}
 .fixed-table tr.sub-item{display:none;}
 .fixed-table tr.sub-item.visible{display:table-row;}
 .fixed-table .cell-input{width:90px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:'DM Mono',monospace;text-align:right;background:#fff;}
@@ -569,6 +575,7 @@ const nwMonthLabel=(y,m)=>NW_MONTHS_ES[m-1]+' '+String(y).slice(-2);
 const nwMonthIso=(y,m)=>y+'-'+String(m).padStart(2,'0')+'-01';
 const nwSlug=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 let sbNwRows=[];
+let mbRows=[]; // monthly_balance manual entries (post-cutoff Sueldo, Comms+Exp, Passive, Alquiler)
 // ===== Fixed Expenses config =====
 const FIXED_ITEMS=['Expensas Diaz Velez','Gas','Internet Casa','Alarma Verisure','Movistar','Seguro','Patente','Swiss Medical','Megatlon'];
 const SUBSCRIPTIONS=[
@@ -658,24 +665,40 @@ async function fetchFixedExpenses(){
   if(error)throw new Error('Supabase fixed: '+error.message);
   return data||[];
 }
+async function fetchMonthlyBalance(){
+  const{data,error}=await sb.from('monthly_balance').select('*').order('month_year',{ascending:true});
+  if(error){console.warn('monthly_balance fetch:',error.message);return[];}
+  return data||[];
+}
+async function saveManualBalance(item,monthKey,value){
+  // monthKey is 'YYYY-MM'. Convert to 'YYYY-MM-01'.
+  const iso=monthKey+'-01';
+  const amount=parseFloat(value)||0;
+  const{error}=await sb.from('monthly_balance').upsert([{month_year:iso,item_name:item,amount_usd:amount}],{onConflict:'month_year,item_name'});
+  if(error)throw new Error(error.message);
+}
 async function loadData(){
   setStatus('Cargando...','loading');
   try{
-   const[varVals,balVals,nwVals,sbExpenses,sbNw,sbFixed]=await Promise.all([
+   const[varVals,balVals,nwVals,sbExpenses,sbNw,sbFixed,sbMb]=await Promise.all([
       fetchSheet('Variables!A:D'),
       fetchSheet("'Income and Expending'!A:BZ"),
       fetchSheet("'Net Worth'!A:BZ"),
       fetchSupabaseExpenses(),
       fetchSupabaseNetWorth(),
-      fetchFixedExpenses()
+      fetchFixedExpenses(),
+      fetchMonthlyBalance()
     ]);
     sbNwRows=sbNw;
     fixedRows=sbFixed;
+    mbRows=sbMb;
     processVariables(varVals,sbExpenses);
     processBalance(balVals);
     processNetWorth(nwVals);
     overlaySupabaseVariables();
     overlayFixedExpenses();
+    overlayMonthlyBalance();
+    recomputeBalanceTotals();
     overlaySupabaseNetWorth();
     populatePickers();
     nwEditorInit();
@@ -762,19 +785,74 @@ function overlaySupabaseVariables(){
     const monthKey=year+'-'+String(monthIdx+1).padStart(2,'0');
     const variablesUsd=varRows.filter(r=>mk(r.date)===monthKey&&r.cat!=='Extraordinary').reduce((s,r)=>s+(r.amtUsd||0),0);
     const extraUsd=varRows.filter(r=>mk(r.date)===monthKey&&r.cat==='Extraordinary').reduce((s,r)=>s+(r.amtUsd||0),0);
-    if(balData.rowMap['Extraordinary Expenses'])balData.rowMap['Extraordinary Expenses'][monthLabel]=extraUsd;
-    else{balData.rowMap['Extraordinary Expenses']={};balData.rowMap['Extraordinary Expenses'][monthLabel]=extraUsd;}
+    if(!balData.rowMap['Extraordinary Expenses'])balData.rowMap['Extraordinary Expenses']={};
+    balData.rowMap['Extraordinary Expenses'][monthLabel]=extraUsd;
+    if(!balData.rowMap['Variables'])balData.rowMap['Variables']={};
+    balData.rowMap['Variables'][monthLabel]=variablesUsd;
+    // Egresos / Balance / % Saved se recalculan en recomputeBalanceTotals() después de todos los overlays
+  }
+}
+
+function overlayMonthlyBalance(){
+  if(!balData.rowMap||!balData.monthCols)return;
+  const cutoff=new Date(CUTOFF_DATE+'T00:00:00');
+  const ITEMS=['Sueldo','Comms + Expenses','Passive Income','Alquiler'];
+  // For each post-cutoff month, init items to 0 (will be overwritten if mbRows has entry)
+  for(const[col,monthLabel]of Object.entries(balData.monthCols)){
+    const m=monthLabel.match(/^(\w+)\s+(\d{2})$/i);
+    if(!m)continue;
+    const monthNames=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const monthIdx=monthNames.indexOf(m[1].toLowerCase());
+    if(monthIdx<0)continue;
+    const year=2000+parseInt(m[2]);
+    const monthStart=new Date(year,monthIdx,1);
+    if(monthStart<cutoff)continue;
+    ITEMS.forEach(it=>{
+      if(!balData.rowMap[it])balData.rowMap[it]={};
+      // Default to 0 (override Sheets "—" / undefined for post-cutoff)
+      balData.rowMap[it][monthLabel]=0;
+    });
+  }
+  // Apply mbRows entries
+  for(const r of mbRows){
+    if(!r.month_year||!r.item_name)continue;
+    const[y,m]=r.month_year.split('-');
+    if(!y||!m)continue;
+    const monthNames=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    const monthLabel=monthNames[parseInt(m)-1]+' '+y.slice(2);
+    if(!ITEMS.includes(r.item_name))continue;
+    if(!balData.rowMap[r.item_name])balData.rowMap[r.item_name]={};
+    balData.rowMap[r.item_name][monthLabel]=parseFloat(r.amount_usd)||0;
+  }
+}
+
+function recomputeBalanceTotals(){
+  if(!balData.rowMap||!balData.monthCols)return;
+  const cutoff=new Date(CUTOFF_DATE+'T00:00:00');
+  for(const[col,monthLabel]of Object.entries(balData.monthCols)){
+    const m=monthLabel.match(/^(\w+)\s+(\d{2})$/i);
+    if(!m)continue;
+    const monthNames=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const monthIdx=monthNames.indexOf(m[1].toLowerCase());
+    if(monthIdx<0)continue;
+    const year=2000+parseInt(m[2]);
+    const monthStart=new Date(year,monthIdx,1);
+    if(monthStart<cutoff)continue;
     const get=lbl=>balData.rowMap[lbl]?balData.rowMap[lbl][monthLabel]||0:0;
-    if(balData.rowMap['Variables'])balData.rowMap['Variables'][monthLabel]=variablesUsd;
-    // Recalcular Egresos = Alquiler + Fijos + Variables (USD calculado) + Viajes y Gastos especiales
-    const egresos=get('Alquiler')+get('Fijos')+variablesUsd+get('Extraordinary Expenses');
-    if(balData.rowMap['Egresos'])balData.rowMap['Egresos'][monthLabel]=egresos;
-    // Recalcular Balance = Ingreso total - Egresos
-    const balance=get('Ingreso total')-egresos;
-    if(balData.rowMap['Balance'])balData.rowMap['Balance'][monthLabel]=balance;
-    // Recalcular % Saved over Income
-    const ingreso=get('Ingreso total');
-    if(balData.rowMap['% Saved over Income'])balData.rowMap['% Saved over Income'][monthLabel]=ingreso>0?balance/ingreso:0;
+    // Ingreso total = Sueldo + Comms+Expenses + Passive Income + Otros (Sheets keeps Otros)
+    const ingreso=get('Sueldo')+get('Comms + Expenses')+get('Passive Income')+get('Otros');
+    if(!balData.rowMap['Ingreso total'])balData.rowMap['Ingreso total']={};
+    balData.rowMap['Ingreso total'][monthLabel]=ingreso;
+    // Egresos = Alquiler + Fijos + Variables + Extraordinary Expenses
+    const egresos=get('Alquiler')+get('Fijos')+get('Variables')+get('Extraordinary Expenses');
+    if(!balData.rowMap['Egresos'])balData.rowMap['Egresos']={};
+    balData.rowMap['Egresos'][monthLabel]=egresos;
+    // Balance & % Saved
+    const balance=ingreso-egresos;
+    if(!balData.rowMap['Balance'])balData.rowMap['Balance']={};
+    balData.rowMap['Balance'][monthLabel]=balance;
+    if(!balData.rowMap['% Saved over Income'])balData.rowMap['% Saved over Income']={};
+    balData.rowMap['% Saved over Income'][monthLabel]=ingreso>0?balance/ingreso:0;
   }
 }
 
@@ -1015,17 +1093,17 @@ function renderBalance(k){
   });
 
   // Table
+  const EDITABLE_ITEMS=['Sueldo','Comms + Expenses','Passive Income','Alquiler'];
   const rows=[
     {label:'Ingreso total',keys:['Sueldo','Comms + Expenses','Passive Income','Otros'],isSection:true,mainKey:'Ingreso total'},
-    {label:'Sueldo',keys:[],mainKey:'Sueldo'},
-    {label:'Comms + Expenses',keys:[],mainKey:'Comms + Expenses'},
-    {label:'Passive Income',keys:[],mainKey:'Passive Income'},
+    {label:'Sueldo',keys:[],mainKey:'Sueldo',editable:true},
+    {label:'Comms + Expenses',keys:[],mainKey:'Comms + Expenses',editable:true},
+    {label:'Passive Income',keys:[],mainKey:'Passive Income',editable:true},
     {label:'Egresos',keys:[],isSection:true,mainKey:'Egresos'},
-    {label:'Alquiler',keys:[],mainKey:'Alquiler'},
+    {label:'Alquiler',keys:[],mainKey:'Alquiler',editable:true},
     {label:'Fijos',keys:[],mainKey:'Fijos'},
     {label:'Variables',keys:[],mainKey:'Variables'},
     {label:'Extraordinary Expenses',keys:[],mainKey:'Extraordinary Expenses'},
-    {label:'Gastos Wedding',keys:[],mainKey:'Gastos Wedding'},
   ];
   const recentMonths=last.slice(-4);
   let html=`<thead><tr><th>Concepto</th>${recentMonths.map(m=>`<th>${mnShort(m)}</th>`).join('')}</tr></thead><tbody>`;
@@ -1036,7 +1114,12 @@ function renderBalance(k){
       const mk3=getBalMonthKey(m);
       const v=get(row.mainKey,mk3);
       const col=row.isSection?(v>=0?'':'negative'):'';
-      html+=`<td class="${col}">${v!==0?fmtUSD(v):'—'}</td>`;
+      const isEditable=row.editable&&m>='2026-05';
+      if(isEditable){
+        html+=`<td><input type="number" class="bal-cell-input" data-item="${row.mainKey}" data-month="${m}" value="${v||''}" step="0.01" placeholder="0"></td>`;
+      }else{
+        html+=`<td class="${col}">${v!==0?fmtUSD(v):'—'}</td>`;
+      }
     });
     html+='</tr>';
   });
@@ -1053,6 +1136,26 @@ function renderBalance(k){
   });
   html+='</tr></tbody>';
   document.getElementById('balTable').innerHTML=html;
+  // Wire editable balance inputs
+  document.querySelectorAll('#balTable .bal-cell-input').forEach(inp=>{
+    inp.onchange=async function(){
+      const item=this.dataset.item;
+      const monthKey=this.dataset.month;
+      const val=this.value;
+      this.classList.remove('saved','errored');
+      this.classList.add('saving');
+      try{
+        await saveManualBalance(item,monthKey,val);
+        this.classList.remove('saving');
+        this.classList.add('saved');
+        await loadData();
+      }catch(err){
+        this.classList.remove('saving');
+        this.classList.add('errored');
+        alert('No se pudo guardar: '+err.message);
+      }
+    };
+  });
 }
 
 // ── BUDGET TAB ────────────────────────────────────────────────
