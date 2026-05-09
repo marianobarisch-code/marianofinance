@@ -597,6 +597,8 @@ const nwSlug=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').
 let sbNwRows=[];
 let mbRows=[]; // monthly_balance manual entries (post-cutoff Sueldo, Comms+Exp, Passive, Alquiler)
 let budgetRows=[]; // category_budgets per-month (step-wise lookup)
+let subsRegistry=[]; // subscriptions registry (active_from/removed_from)
+let subsAddOpen=false; // toggle for the inline 'add subscription' form
 // ===== Fixed Expenses config =====
 const FIXED_ITEMS=['Expensas Diaz Velez','Gas','Internet Casa','Alarma Verisure','Movistar','Seguro','Patente','Swiss Medical','Megatlon'];
 const SUBSCRIPTIONS=[
@@ -696,6 +698,16 @@ async function fetchCategoryBudgets(){
   if(error){console.warn('category_budgets fetch:',error.message);return[];}
   return data||[];
 }
+async function fetchSubscriptions(){
+  const{data,error}=await sb.from('subscriptions').select('*').order('active_from',{ascending:true}).order('name',{ascending:true});
+  if(error){console.warn('subscriptions fetch:',error.message);return[];}
+  return data||[];
+}
+function getActiveSubscriptions(monthKey){
+  if(!monthKey)return[];
+  const iso=monthKey+'-01';
+  return subsRegistry.filter(s=>s.active_from<=iso&&(!s.removed_from||s.removed_from>iso));
+}
 async function saveManualBalance(item,monthKey,value){
   // monthKey is 'YYYY-MM'. Convert to 'YYYY-MM-01'.
   const iso=monthKey+'-01';
@@ -706,7 +718,7 @@ async function saveManualBalance(item,monthKey,value){
 async function loadData(){
   setStatus('Cargando...','loading');
   try{
-   const[varVals,balVals,nwVals,sbExpenses,sbNw,sbFixed,sbMb,sbCb]=await Promise.all([
+   const[varVals,balVals,nwVals,sbExpenses,sbNw,sbFixed,sbMb,sbCb,sbSubs]=await Promise.all([
       fetchSheet('Variables!A:D'),
       fetchSheet("'Income and Expending'!A:BZ"),
       fetchSheet("'Net Worth'!A:BZ"),
@@ -714,12 +726,14 @@ async function loadData(){
       fetchSupabaseNetWorth(),
       fetchFixedExpenses(),
       fetchMonthlyBalance(),
-      fetchCategoryBudgets()
+      fetchCategoryBudgets(),
+      fetchSubscriptions()
     ]);
     sbNwRows=sbNw;
     fixedRows=sbFixed;
     mbRows=sbMb;
     budgetRows=sbCb;
+    subsRegistry=sbSubs;
     processVariables(varVals,sbExpenses);
     processBalance(balVals);
     processNetWorth(nwVals);
@@ -1423,19 +1437,22 @@ function renderFixed(k){
     html+='</tr>';
   });
 
-  const subsTotal=SUBSCRIPTIONS.reduce((s,sub)=>{
+  const activeSubs=getActiveSubscriptions(k);
+  const subsTotal=activeSubs.reduce((s,sub)=>{
     const row=getRow(sub.name);
     if(row)return s+(parseFloat(row.amount_ars)||0);
-    if(sub.currency==='USD'){const lastFx=fixedRows.find(r=>r.ars_per_usd>0);const fx=lastFx?parseFloat(lastFx.ars_per_usd):1400;return s+sub.amount*fx;}
-    return s+sub.amount;
+    const defAmt=parseFloat(sub.default_amount)||0;
+    if(sub.currency==='USD'){const lastFx=fixedRows.find(r=>r.ars_per_usd>0);const fx=lastFx?parseFloat(lastFx.ars_per_usd):1400;return s+defAmt*fx;}
+    return s+defAmt;
   },0);
   totalArs+=subsTotal;
 
   html+='<tr class="sub-toggle" id="subsToggleRow"><td>▶ Suscripciones</td><td colspan="2" style="text-align:right;">'+fmtAmtRead(subsTotal,'ARS')+'</td><td style="text-align:center;font-size:11px;color:var(--text3);">Débito automático</td></tr>';
 
-  SUBSCRIPTIONS.forEach(sub=>{
+  activeSubs.forEach(sub=>{
     const row=getRow(sub.name);
-    const amt=row?parseFloat(row.amount)||0:sub.amount;
+    const defAmt=parseFloat(sub.default_amount)||0;
+    const amt=row?parseFloat(row.amount)||0:defAmt;
     const cur=row?row.currency||sub.currency:sub.currency;
     html+='<tr class="sub-item" data-sub="true">';
     html+='<td>'+sub.name+'</td>';
@@ -1445,8 +1462,29 @@ function renderFixed(k){
     }else{
       html+='<td style="text-align:right;">'+fmtAmtRead(amt,cur)+'</td>';
     }
-    html+='<td style="text-align:center;font-size:11px;color:var(--text3);">Auto</td></tr>';
+    if(editing){
+      html+='<td style="text-align:center;"><button class="sub-remove-btn" data-sub-name="'+sub.name+'" title="Eliminar suscripción a partir de '+mNames[+m-1]+' '+y+'" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--red);padding:2px 6px;">🗑</button></td>';
+    }else{
+      html+='<td style="text-align:center;font-size:11px;color:var(--text3);">Auto</td>';
+    }
+    html+='</tr>';
   });
+  if(editing){
+    if(subsAddOpen){
+      html+='<tr class="sub-item sub-add-row" data-sub="true"><td colspan="4" style="padding:10px 8px;background:var(--surface2);">';
+      html+='<div style="display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;">';
+      html+='<input id="subAddName" placeholder="Nombre" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-family:\'DM Sans\',sans-serif;width:160px;">';
+      html+='<input id="subAddAmount" type="number" step="0.01" placeholder="Monto" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-family:\'DM Mono\',monospace;width:110px;text-align:right;">';
+      html+='<select id="subAddCurrency" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-family:\'DM Sans\',sans-serif;"><option value="ARS">ARS</option><option value="USD">USD</option></select>';
+      html+='<button class="btn-primary" id="subAddSave" type="button" style="font-size:12px;padding:5px 14px;">Agregar</button>';
+      html+='<button class="bal-cancel-btn" id="subAddCancel" type="button">Cancelar</button>';
+      html+='</div></td></tr>';
+    }else{
+      html+='<tr class="sub-item sub-add-row" data-sub="true"><td colspan="4" style="text-align:center;padding:8px;">';
+      html+='<button class="bal-edit-btn" id="subAddOpenBtn" type="button">+ Agregar suscripción</button>';
+      html+='</td></tr>';
+    }
+  }
 
   html+='<tr class="fixed-total-row"><td>TOTAL</td><td></td><td style="text-align:right;">'+fmtAmtRead(totalArs,'ARS')+'</td><td></td></tr>';
   html+='</tbody>';
@@ -1471,6 +1509,46 @@ function renderFixed(k){
         tr.className=getSemaphore(this.value,cb?cb.checked:false,new Date());
       };
     });
+    // Subscriptions remove buttons
+    document.querySelectorAll('#fixedTable .sub-remove-btn').forEach(btn=>{
+      btn.onclick=async function(){
+        const name=this.dataset.subName;
+        const ok=confirm('¿Eliminar "'+name+'" a partir de '+mNames[+m-1]+' '+y+'?\nLos meses anteriores no se modifican.');
+        if(!ok)return;
+        try{
+          const{error}=await sb.from('subscriptions').update({removed_from:iso}).eq('name',name);
+          if(error)throw new Error(error.message);
+          subsRegistry=await fetchSubscriptions();
+          renderFixed(months[curIdx]);
+        }catch(err){alert('No se pudo eliminar: '+err.message);}
+      };
+    });
+    // Subscriptions add open
+    const subAddOpenBtn=document.getElementById('subAddOpenBtn');
+    if(subAddOpenBtn)subAddOpenBtn.onclick=function(){subsAddOpen=true;renderFixed(months[curIdx]);// keep subs expanded
+      const tr=document.getElementById('subsToggleRow');if(tr&&tr.querySelector('td').textContent.startsWith('\u25B6'))tr.click();};
+    // Subscriptions add cancel
+    const subAddCancel=document.getElementById('subAddCancel');
+    if(subAddCancel)subAddCancel.onclick=function(){subsAddOpen=false;renderFixed(months[curIdx]);};
+    // Subscriptions add save
+    const subAddSave=document.getElementById('subAddSave');
+    if(subAddSave)subAddSave.onclick=async function(){
+      const nameEl=document.getElementById('subAddName');
+      const amtEl=document.getElementById('subAddAmount');
+      const curEl=document.getElementById('subAddCurrency');
+      const name=(nameEl.value||'').trim();
+      const amount=parseFloat(amtEl.value)||0;
+      const currency=curEl.value||'ARS';
+      if(!name){alert('Falta el nombre.');return;}
+      if(subsRegistry.some(s=>s.name.toLowerCase()===name.toLowerCase())){alert('Ya existe una suscripción con ese nombre. Si querés reactivarla, decímelo.');return;}
+      try{
+        const{error}=await sb.from('subscriptions').insert({name:name,currency:currency,default_amount:amount,active_from:iso});
+        if(error)throw new Error(error.message);
+        subsRegistry=await fetchSubscriptions();
+        subsAddOpen=false;
+        renderFixed(months[curIdx]);
+      }catch(err){alert('No se pudo agregar: '+err.message);}
+    };
   }
   const toggleRow=document.getElementById('subsToggleRow');
   if(toggleRow){toggleRow.onclick=function(){
