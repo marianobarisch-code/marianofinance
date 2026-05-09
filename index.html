@@ -403,7 +403,13 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
     <div class="section-title">Presupuesto por categoría <span style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none">— clic para detalle</span></div>
     <button class="edit-toggle" id="addExpenseBtn">+ Add expense</button>
     <button class="edit-toggle" id="toggleBudgets" style="margin-left:8px">Editar presupuestos</button>
-    <div class="budget-editor" id="budgetEditor"><div class="editor-grid" id="editorGrid"></div></div>
+    <div class="budget-editor" id="budgetEditor">
+      <div class="editor-grid" id="editorGrid"></div>
+      <div id="budgetEditorActions" style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:14px;">
+        <span id="budgetSaveStatus" style="font-size:12px;font-weight:500;"></span>
+        <button class="btn-primary" id="budgetSaveBtn" type="button">Guardar mes</button>
+      </div>
+    </div>
     <div class="budgets-grid" id="budgetsGrid"></div>
     <div class="card month-exp-card" style="margin-top:1.5rem;">
       <div class="card-title">Gastos del mes — <span id="monthExpensesLabel"></span> <span style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none">— más reciente arriba</span></div>
@@ -590,6 +596,7 @@ const nwMonthIso=(y,m)=>y+'-'+String(m).padStart(2,'0')+'-01';
 const nwSlug=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 let sbNwRows=[];
 let mbRows=[]; // monthly_balance manual entries (post-cutoff Sueldo, Comms+Exp, Passive, Alquiler)
+let budgetRows=[]; // category_budgets per-month (step-wise lookup)
 // ===== Fixed Expenses config =====
 const FIXED_ITEMS=['Expensas Diaz Velez','Gas','Internet Casa','Alarma Verisure','Movistar','Seguro','Patente','Swiss Medical','Megatlon'];
 const SUBSCRIPTIONS=[
@@ -684,6 +691,11 @@ async function fetchMonthlyBalance(){
   if(error){console.warn('monthly_balance fetch:',error.message);return[];}
   return data||[];
 }
+async function fetchCategoryBudgets(){
+  const{data,error}=await sb.from('category_budgets').select('*').order('month_year',{ascending:true});
+  if(error){console.warn('category_budgets fetch:',error.message);return[];}
+  return data||[];
+}
 async function saveManualBalance(item,monthKey,value){
   // monthKey is 'YYYY-MM'. Convert to 'YYYY-MM-01'.
   const iso=monthKey+'-01';
@@ -694,18 +706,20 @@ async function saveManualBalance(item,monthKey,value){
 async function loadData(){
   setStatus('Cargando...','loading');
   try{
-   const[varVals,balVals,nwVals,sbExpenses,sbNw,sbFixed,sbMb]=await Promise.all([
+   const[varVals,balVals,nwVals,sbExpenses,sbNw,sbFixed,sbMb,sbCb]=await Promise.all([
       fetchSheet('Variables!A:D'),
       fetchSheet("'Income and Expending'!A:BZ"),
       fetchSheet("'Net Worth'!A:BZ"),
       fetchSupabaseExpenses(),
       fetchSupabaseNetWorth(),
       fetchFixedExpenses(),
-      fetchMonthlyBalance()
+      fetchMonthlyBalance(),
+      fetchCategoryBudgets()
     ]);
     sbNwRows=sbNw;
     fixedRows=sbFixed;
     mbRows=sbMb;
+    budgetRows=sbCb;
     processVariables(varVals,sbExpenses);
     processBalance(balVals);
     processNetWorth(nwVals);
@@ -995,8 +1009,24 @@ function processNetWorth(vals){
 }
 
 function initBudgets(cats){
+  // Step-wise lookup against budgetRows for the currently viewed month.
+  // For each category find the latest row with month_year <= currentMonth-01;
+  // fall back to historical avg × 1.15 if no row exists.
+  recomputeBudgetsFor(months[curIdx]||null,cats);
+}
+function recomputeBudgetsFor(monthKey,catsArg){
+  const cats=catsArg||[...new Set(varRows.map(r=>r.cat))];
+  const iso=monthKey?(monthKey+'-01'):null;
   cats.forEach(cat=>{
-    if(budgets[cat]!=null)return;
+    if(iso){
+      const matches=budgetRows.filter(r=>r.category===cat&&r.month_year<=iso);
+      if(matches.length){
+        matches.sort((a,b)=>b.month_year.localeCompare(a.month_year));
+        budgets[cat]=Math.round(parseFloat(matches[0].amount_ars)||0);
+        return;
+      }
+    }
+    // Fallback: historical avg × 1.15 (original behavior)
     const hist=varRows.filter(r=>r.cat===cat);
     const ms=[...new Set(hist.map(r=>mk(r.date)))];
     const avg=ms.length?hist.reduce((s,r)=>s+r.amt,0)/ms.length:0;
@@ -1279,8 +1309,40 @@ function renderMonthExpensesList(k){
 
 function renderEditor(cats){
   document.getElementById('editorGrid').innerHTML=cats.map(cat=>
-    `<div class="editor-row"><label title="${cat}">${cat}</label><input type="number" value="${budgets[cat]||0}" onchange="budgets['${cat}']=parseInt(this.value)||0;render();"></div>`
+    `<div class="editor-row"><label title="${cat}">${cat}</label><input type="number" value="${budgets[cat]||0}" onchange="budgets['${cat}']=parseInt(this.value)||0;renderBudget(months[curIdx]);"></div>`
   ).join('');
+}
+
+// ── BUDGETS BATCH SAVE (category_budgets) ─────────────────────
+async function saveCategoryBudgets(){
+  const status=document.getElementById('budgetSaveStatus');
+  const btn=document.getElementById('budgetSaveBtn');
+  if(btn){btn.disabled=true;btn.textContent='Guardando...';}
+  if(status){status.textContent='';}
+  const k=months[curIdx];
+  if(!k){if(btn){btn.disabled=false;btn.textContent='Guardar mes';}return;}
+  const iso=k+'-01';
+  const cats=[...new Set(varRows.map(r=>r.cat))];
+  const rows=cats.map(cat=>({month_year:iso,category:cat,amount_ars:Math.round(parseFloat(budgets[cat])||0)}));
+  try{
+    const{error}=await sb.from('category_budgets').upsert(rows,{onConflict:'month_year,category'});
+    if(error)throw new Error(error.message);
+    if(status){status.textContent='\u2713 Guardado para '+mnShort(k);status.style.color='var(--green)';}
+    // Refetch and recompute against current month
+    budgetRows=await fetchCategoryBudgets();
+    recomputeBudgetsFor(k);
+    // Close editor and reset toggle label
+    const editorEl=document.getElementById('budgetEditor');
+    const toggleEl=document.getElementById('toggleBudgets');
+    if(editorEl)editorEl.style.display='none';
+    if(toggleEl)toggleEl.textContent='Editar presupuestos';
+    render();
+    setTimeout(()=>{if(status)status.textContent='';},3000);
+  }catch(err){
+    if(status){status.textContent='\u2717 '+err.message;status.style.color='var(--red)';}
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='Guardar mes';}
+  }
 }
 
 
@@ -1939,10 +2001,10 @@ function populatePickers(){
   mSel.onchange=ySel.onchange=function(){
     const k=ySel.value+'-'+String(mSel.value).padStart(2,'0');
     const idx=months.indexOf(k);
-    if(idx>=0){curIdx=idx;render();}
+    if(idx>=0){curIdx=idx;recomputeBudgetsFor(k);render();}
     else{
       // Month not in data — add it so we can still navigate
-      months.push(k);months.sort();curIdx=months.indexOf(k);render();
+      months.push(k);months.sort();curIdx=months.indexOf(k);recomputeBudgetsFor(k);render();
     }
   };
 }
@@ -2003,6 +2065,8 @@ document.getElementById('toggleBudgets').onclick=function(){
   el.style.display=show?'block':'none';
   this.textContent=show?'Ocultar presupuestos':'Editar presupuestos';
 };
+const budgetSaveBtnEl=document.getElementById('budgetSaveBtn');
+if(budgetSaveBtnEl)budgetSaveBtnEl.onclick=saveCategoryBudgets;
 
 loadData();
 // ── ADD EXPENSE MODAL ─────────────────────────────────────
