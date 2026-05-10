@@ -4,6 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Finanzas Mariano 2.0</title>
+<link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#5E72EB">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Finanzas">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -47,6 +56,32 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 /* CARDS & METRICS */
 .metrics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:1.5rem;}
 .metrics-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:1.5rem;}
+.metrics-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:1.25rem;}
+.add-expense-btn{background:var(--primary);color:#fff;border:none;padding:11px 22px;font-size:14px;font-weight:700;border-radius:10px;cursor:pointer;font-family:'DM Sans',sans-serif;display:inline-flex;align-items:center;gap:8px;transition:background .15s,transform .1s,box-shadow .15s;box-shadow:0 2px 10px rgba(94,114,235,.28);margin-bottom:1rem;}
+.add-expense-btn:hover{background:var(--primary-dark);box-shadow:0 4px 14px rgba(94,114,235,.4);}
+.add-expense-btn:active{transform:translateY(1px);}
+.card-title-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;}
+.card-title-row .card-title{margin-bottom:0;}
+.chart-toggle{background:none;border:1px solid var(--border);width:24px;height:24px;border-radius:6px;cursor:pointer;font-size:11px;color:var(--text2);display:flex;align-items:center;justify-content:center;transition:all .15s;font-family:'DM Sans',sans-serif;line-height:1;}
+.chart-toggle:hover{background:var(--surface2);color:var(--text);}
+.chart-card.collapsed .chart-body{display:none;}
+.chart-card.collapsed{padding-bottom:1rem;}
+.inv-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:1.5rem;}
+.inv-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.1rem 1.25rem;cursor:pointer;transition:all .15s;}
+.inv-card:hover{border-color:var(--primary);box-shadow:0 2px 12px rgba(94,114,235,.12);}
+.inv-name{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;}
+.inv-balance{font-size:22px;font-weight:600;letter-spacing:-.5px;line-height:1;margin-bottom:6px;}
+.inv-balance.empty{color:var(--text3);font-weight:500;}
+.inv-change{font-size:12px;font-family:'DM Mono',monospace;margin-bottom:4px;}
+.inv-change .inv-pct.pos,.inv-change .inv-abs.pos{color:var(--green);}
+.inv-change .inv-pct.neg,.inv-change .inv-abs.neg{color:var(--red);}
+.inv-sub{font-size:11px;color:var(--text3);}
+.inv-empty-state{padding:1.5rem;text-align:center;color:var(--text2);}
+.inv-empty-state p{font-size:13px;line-height:1.5;margin:6px 0;}
+.inv-empty-state code{background:var(--surface2);padding:2px 6px;border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;}
+.inv-period-btns{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;}
+.inv-period-btn{padding:5px 12px;font-size:11px;border:1px solid var(--border);background:var(--surface);border-radius:14px;cursor:pointer;color:var(--text2);font-family:'DM Sans',sans-serif;}
+.inv-period-btn.active{background:var(--primary);color:#fff;border-color:var(--primary);}
 .metric-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.1rem 1.25rem;}
 .metric-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px;}
 .metric-value{font-size:22px;font-weight:600;letter-spacing:-.5px;line-height:1;margin-bottom:3px;color:var(--text);}
@@ -305,10 +340,11 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 
 <div class="date-range-bar" id="dateRangeBar" style="display:none;"></div>
 <div class="tabs-bar">
-  <button class="tab-btn active" data-tab="networth">Net Worth</button>
+  <button class="tab-btn" data-tab="networth">Net Worth</button>
   <button class="tab-btn" data-tab="balance">Income & Spending</button>
-  <button class="tab-btn" data-tab="budget">Budget</button>
+  <button class="tab-btn active" data-tab="budget">Budget</button>
   <button class="tab-btn" data-tab="insights">Insights</button>
+  <button class="tab-btn" data-tab="investments">Investments</button>
 </div>
 
 <main>
@@ -341,13 +377,23 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
     </div>
 
     <div class="charts-grid">
-      <div class="card">
-        <div class="card-title">Ingresos vs Egresos</div>
+      <div class="card chart-card" data-chart-key="balBar">
+        <div class="card-title-row">
+          <div class="card-title">Ingresos vs Egresos</div>
+          <button class="chart-toggle" data-chart-key="balBar" aria-label="Colapsar gráfico">▾</button>
+        </div>
+        <div class="chart-body">
         <div style="position:relative;width:100%;height:200px;"><canvas id="balBarChart"></canvas></div>
+        </div>
       </div>
-      <div class="card">
-        <div class="card-title">Balance mensual</div>
+      <div class="card chart-card" data-chart-key="balLine">
+        <div class="card-title-row">
+          <div class="card-title">Balance mensual</div>
+          <button class="chart-toggle" data-chart-key="balLine" aria-label="Colapsar gráfico">▾</button>
+        </div>
+        <div class="chart-body">
         <div style="position:relative;width:100%;height:200px;"><canvas id="balLineChart"></canvas></div>
+        </div>
       </div>
     </div>
 
@@ -366,43 +412,50 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
   </div>
 
   <!-- TAB: BUDGET -->
-  <div class="tab-panel" id="tab-budget">
+  <div class="tab-panel active" id="tab-budget">
     <div class="budget-subtabs">
       <button class="budget-subtab active" data-bsub="home">Gasto Variable</button>
       <button class="budget-subtab" data-bsub="fijos">Gastos Fijos</button>
     </div>
     <div class="budget-subpanel active" id="bsub-home">
-    <div class="metrics-grid-3">
+    <div class="metrics-grid-2">
       <div class="metric-card">
         <div class="metric-label">Total gastado (ARS)</div>
         <div class="metric-value" id="mTotal">—</div>
         <div class="metric-sub" id="mTotalSub">—</div>
       </div>
       <div class="metric-card">
-        <div class="metric-label">Categorías excedidas</div>
-        <div class="metric-value" id="mOver">—</div>
-        <div class="metric-sub" id="mOverSub">—</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">Mayor gasto</div>
-        <div class="metric-value" id="mTop">—</div>
-        <div class="metric-sub" id="mTopCat">—</div>
+        <div class="metric-label">Gastos extraordinarios</div>
+        <div class="metric-value" id="mExtraArs">—</div>
+        <div class="metric-sub" id="mExtraUsd">—</div>
       </div>
     </div>
+    <button class="add-expense-btn" id="addExpenseBtn">
+      <span style="font-size:18px;line-height:1;">+</span><span>Add expense</span>
+    </button>
     <div class="charts-grid">
-      <div class="card">
-        <div class="card-title">Distribución por categoría <span style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none">— clic para detalle</span></div>
+      <div class="card chart-card" data-chart-key="pie">
+        <div class="card-title-row">
+          <div class="card-title">Distribución por categoría <span style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none">— clic para detalle</span></div>
+          <button class="chart-toggle" data-chart-key="pie" aria-label="Colapsar gráfico">▾</button>
+        </div>
+        <div class="chart-body">
         <div class="legend" id="pieLegend"></div>
         <div style="position:relative;width:100%;height:200px;"><canvas id="pieChart"></canvas></div>
+        </div>
       </div>
-      <div class="card">
-        <div class="card-title">Evolución mensual (ARS)</div>
+      <div class="card chart-card" data-chart-key="varBar">
+        <div class="card-title-row">
+          <div class="card-title">Evolución mensual (ARS)</div>
+          <button class="chart-toggle" data-chart-key="varBar" aria-label="Colapsar gráfico">▾</button>
+        </div>
+        <div class="chart-body">
         <div style="position:relative;width:100%;height:220px;"><canvas id="varBarChart"></canvas></div>
+        </div>
       </div>
     </div>
     <div class="section-title">Presupuesto por categoría <span style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none">— clic para detalle</span></div>
-    <button class="edit-toggle" id="addExpenseBtn">+ Add expense</button>
-    <button class="edit-toggle" id="toggleBudgets" style="margin-left:8px">Editar presupuestos</button>
+    <button class="edit-toggle" id="toggleBudgets">Editar presupuestos</button>
     <div class="budget-editor" id="budgetEditor">
       <div class="editor-grid" id="editorGrid"></div>
       <div id="budgetEditorActions" style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:14px;">
@@ -435,7 +488,7 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
   </div>
 
   <!-- TAB: NET WORTH -->
-  <div class="tab-panel active" id="tab-networth">
+  <div class="tab-panel" id="tab-networth">
     <div class="metrics-grid-3">
       <div class="metric-card">
         <div class="metric-label">Patrimonio neto</div>
@@ -506,6 +559,70 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
   <!-- TAB: INSIGHTS -->
   <div class="tab-panel" id="tab-insights">
     <div class="insights-list" id="insightsList"></div>
+  </div>
+
+  <!-- TAB: INVESTMENTS -->
+  <div class="tab-panel" id="tab-investments">
+    <div class="inv-period-btns" id="invPeriodBtns">
+      <button class="inv-period-btn active" data-period="prev">vs mes anterior</button>
+      <button class="inv-period-btn" data-period="last3">Últimos 3 meses</button>
+      <button class="inv-period-btn" data-period="ytd">YTD</button>
+    </div>
+    <div class="inv-cards" id="invCards">
+      <div class="inv-card" data-portfolio="StoneX">
+        <div class="inv-name">StoneX</div>
+        <div class="inv-balance empty" data-field="balance">—</div>
+        <div class="inv-change"><span class="inv-pct" data-field="pct">—</span> · <span class="inv-abs" data-field="abs">—</span></div>
+        <div class="inv-sub" data-field="sub">sin datos</div>
+      </div>
+      <div class="inv-card" data-portfolio="Binance">
+        <div class="inv-name">Binance</div>
+        <div class="inv-balance empty" data-field="balance">—</div>
+        <div class="inv-change"><span class="inv-pct" data-field="pct">—</span> · <span class="inv-abs" data-field="abs">—</span></div>
+        <div class="inv-sub" data-field="sub">sin datos</div>
+      </div>
+      <div class="inv-card" data-portfolio="eToro">
+        <div class="inv-name">eToro</div>
+        <div class="inv-balance empty" data-field="balance">—</div>
+        <div class="inv-change"><span class="inv-pct" data-field="pct">—</span> · <span class="inv-abs" data-field="abs">—</span></div>
+        <div class="inv-sub" data-field="sub">sin datos</div>
+      </div>
+    </div>
+    <div class="card inv-empty-state">
+      <div class="card-title" style="text-align:center;margin-bottom:8px;">Próximamente con persistencia en Supabase</div>
+      <p>Por ahora podés clickear cualquier card y guardar saldo + inyección de capital del mes en <code>localStorage</code> de tu navegador.</p>
+      <p>Cuando creemos la tabla <code>investments</code> en Supabase, las cards se sincronizan automáticamente entre dispositivos. Te paso el SQL aparte cuando termine el deploy.</p>
+    </div>
+  </div>
+
+  <!-- MODAL: Investment Editor -->
+  <div class="modal-overlay" id="invModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" id="invModalTitle">Editar cartera</div>
+        <button class="modal-close" id="invModalClose">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label class="form-label">Mes</label>
+          <input type="text" class="form-input" id="invMonthLabel" disabled>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Saldo del mes (USD)</label>
+          <input type="number" class="form-input" id="invBalance" placeholder="0" step="0.01">
+        </div>
+        <div class="form-row">
+          <label class="form-label">Inyección de capital del mes (USD)</label>
+          <input type="number" class="form-input" id="invInjection" placeholder="0" step="0.01">
+          <div style="font-size:11px;color:var(--text3);margin-top:4px;">Opcional. Se descuenta del cálculo de performance vs mes anterior.</div>
+        </div>
+        <div id="invModalError" style="color:var(--red);font-size:12px;min-height:16px;"></div>
+        <div class="form-actions">
+          <button class="btn-secondary" id="invModalCancel">Cancelar</button>
+          <button class="btn-primary" id="invModalSubmit">Guardar</button>
+        </div>
+      </div>
+    </div>
   </div>
 
 </main>
@@ -1251,13 +1368,39 @@ function renderBudget(k){
   const overList=sorted.filter(([c,v])=>budgets[c]&&v>budgets[c]);
 
   document.getElementById('mTotal').textContent=fmtARS(total);
+  // Card 1 sub — proportional comparison vs previous month at same day cutoff
   const prevK=months[curIdx-1];
-  if(prevK){const prev=monthVarData(prevK).reduce((s,r)=>s+r.amt,0);const d=Math.round((total-prev)/prev*100);const sub=document.getElementById('mTotalSub');sub.textContent=(d>=0?'+':'')+d+'% vs '+mnShort(prevK);sub.className='metric-sub '+(d>8?'up':d<-5?'down':'');}
-  document.getElementById('mOver').textContent=overList.length||'—';
-  const overSub=document.getElementById('mOverSub');overSub.textContent=overList.length?overList.slice(0,2).map(([c])=>c).join(', '):'todo dentro del límite';overSub.className='metric-sub '+(overList.length?'up':'down');
-  const top=sorted[0]||['—',0];
-  document.getElementById('mTop').textContent=fmtARS(top[1]);
-  document.getElementById('mTopCat').textContent=top[0];
+  const subTotEl=document.getElementById('mTotalSub');
+  if(prevK){
+    const today=new Date();
+    const[cy,cm]=k.split('-').map(Number);
+    const isCurMonth=(today.getFullYear()===cy && today.getMonth()+1===cm);
+    const cutoffDay=isCurMonth?today.getDate():new Date(cy,cm,0).getDate();
+    const curTotProp=rows.filter(r=>r.date.getDate()<=cutoffDay).reduce((s,r)=>s+r.amt,0);
+    const prevTotProp=monthVarData(prevK).filter(r=>r.date.getDate()<=cutoffDay).reduce((s,r)=>s+r.amt,0);
+    if(prevTotProp>0){
+      const d=Math.round((curTotProp-prevTotProp)/prevTotProp*100);
+      const sign=d>=0?'+':'';
+      const tag=isCurMonth?(' (1–'+cutoffDay+')'):'';
+      subTotEl.textContent=sign+d+'% vs '+mnShort(prevK)+tag;
+      subTotEl.className='metric-sub '+(d>8?'up':d<-5?'down':'');
+    }else{
+      subTotEl.textContent='sin datos en '+mnShort(prevK);
+      subTotEl.className='metric-sub neutral';
+    }
+  }else{
+    subTotEl.textContent='sin mes anterior';
+    subTotEl.className='metric-sub neutral';
+  }
+  // Card 2 — Extraordinary expenses (ARS + USD)
+  const extraRows=monthExtraData(k);
+  const extraArs=extraRows.reduce((s,r)=>s+(r.amt||0),0);
+  const extraUsd=extraRows.reduce((s,r)=>s+(r.amtUsd||0),0);
+  document.getElementById('mExtraArs').textContent=extraArs?fmtARS(extraArs):'—';
+  const extraUsdEl=document.getElementById('mExtraUsd');
+  extraUsdEl.textContent=extraUsd?('US$ '+Math.round(extraUsd).toLocaleString('en-US')):(extraRows.length?'—':'sin extraordinarios');
+  extraUsdEl.className='metric-sub neutral';
+  // overList still computed for "Categorías excedidas" warning in budget grid below
 
   // Pie
   const top10=sorted.slice(0,10);
@@ -2129,12 +2272,168 @@ if(rpEl)rpEl.onchange=function(){applyPreset(this.value);};
 
 document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.onclick=()=>{
+    const wasActive=btn.classList.contains('active');
     document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
     document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+    // Default month per-tab on switch (only when arriving from a different tab)
+    if(!wasActive && months.length){
+      const today=new Date();
+      const currentKey=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');
+      const curMonthIdx=months.indexOf(currentKey);
+      if(btn.dataset.tab==='networth'){
+        // Snap to previous month if currently on current calendar month
+        if(months[curIdx]===currentKey && curIdx>0){
+          curIdx=curIdx-1;
+          render();
+        }
+      }else if(btn.dataset.tab==='budget'){
+        // Snap to current calendar month
+        if(curMonthIdx>=0 && curIdx!==curMonthIdx){
+          curIdx=curMonthIdx;
+          render();
+        }
+      }else if(btn.dataset.tab==='investments'){
+        renderInvestments();
+      }
+    }
   };
 });
+
+// ── CHART TOGGLE ───────────────────────────────────────────────
+function initChartToggles(){
+  document.querySelectorAll('.chart-card').forEach(card=>{
+    const key=card.getAttribute('data-chart-key');
+    if(!key)return;
+    const collapsed=localStorage.getItem('chart_collapsed_'+key)==='1';
+    if(collapsed){card.classList.add('collapsed');}
+    const btn=card.querySelector('.chart-toggle');
+    if(btn){
+      btn.textContent=collapsed?'▸':'▾';
+      btn.onclick=function(e){
+        e.stopPropagation();
+        const isCol=card.classList.toggle('collapsed');
+        localStorage.setItem('chart_collapsed_'+key,isCol?'1':'0');
+        btn.textContent=isCol?'▸':'▾';
+      };
+    }
+  });
+}
+initChartToggles();
+
+// ── INVESTMENTS TAB ───────────────────────────────────────────
+const INV_PORTFOLIOS=['StoneX','Binance','eToro'];
+let invPeriod='prev';
+function invStorageKey(p,k){return 'inv:'+p+':'+k;}
+function invGetMonth(p,k){
+  try{const raw=localStorage.getItem(invStorageKey(p,k));return raw?JSON.parse(raw):null;}catch(e){return null;}
+}
+function invSaveMonth(p,k,data){
+  localStorage.setItem(invStorageKey(p,k),JSON.stringify(data));
+}
+function renderInvestments(){
+  if(!months.length)return;
+  const k=months[curIdx];
+  const cards=document.querySelectorAll('#invCards .inv-card');
+  cards.forEach(card=>{
+    const p=card.getAttribute('data-portfolio');
+    const cur=invGetMonth(p,k);
+    const balanceEl=card.querySelector('[data-field="balance"]');
+    const pctEl=card.querySelector('[data-field="pct"]');
+    const absEl=card.querySelector('[data-field="abs"]');
+    const subEl=card.querySelector('[data-field="sub"]');
+    if(!cur||cur.balance==null){
+      balanceEl.textContent='—';
+      balanceEl.classList.add('empty');
+      pctEl.textContent='—';pctEl.className='inv-pct';
+      absEl.textContent='—';absEl.className='inv-abs';
+      subEl.textContent='click para agregar saldo';
+      return;
+    }
+    balanceEl.textContent='US$ '+Math.round(cur.balance).toLocaleString('en-US');
+    balanceEl.classList.remove('empty');
+    // Compute change vs selected period
+    let cmpKey=null,cmpLabel='';
+    if(invPeriod==='prev'){
+      cmpKey=months[curIdx-1]||null;cmpLabel=cmpKey?('vs '+mnShort(cmpKey)):'sin mes anterior';
+    }else if(invPeriod==='last3'){
+      cmpKey=months[curIdx-3]||null;cmpLabel=cmpKey?('vs '+mnShort(cmpKey)):'sin 3 meses atrás';
+    }else if(invPeriod==='ytd'){
+      const yr=k.split('-')[0];const ytdK=yr+'-01';
+      const candidates=months.filter(m=>m<k && m.startsWith(yr));
+      cmpKey=candidates.length?candidates[0]:null;
+      cmpLabel=cmpKey?('vs '+mnShort(cmpKey)):'sin YTD';
+    }
+    const cmp=cmpKey?invGetMonth(p,cmpKey):null;
+    if(cmp&&cmp.balance!=null&&cmp.balance!==0){
+      // Sum capital injections from cmpKey+1 through curK (inclusive)
+      let injSum=0;
+      const cmpIdx=months.indexOf(cmpKey);
+      for(let i=cmpIdx+1;i<=curIdx;i++){
+        const m=invGetMonth(p,months[i]);
+        if(m&&m.injection)injSum+=m.injection;
+      }
+      const realDelta=cur.balance-cmp.balance-injSum;
+      const realPct=Math.round(realDelta/Math.abs(cmp.balance)*100);
+      pctEl.textContent=(realPct>=0?'+':'')+realPct+'%';
+      pctEl.className='inv-pct '+(realPct>=0?'pos':'neg');
+      absEl.textContent=(realDelta>=0?'+':'-')+'US$ '+Math.round(Math.abs(realDelta)).toLocaleString('en-US');
+      absEl.className='inv-abs '+(realDelta>=0?'pos':'neg');
+      subEl.textContent=cmpLabel+(injSum?' · neto de inyecciones':'');
+    }else{
+      pctEl.textContent='—';pctEl.className='inv-pct';
+      absEl.textContent='—';absEl.className='inv-abs';
+      subEl.textContent=cmpLabel;
+    }
+  });
+}
+document.querySelectorAll('#invCards .inv-card').forEach(card=>{
+  card.onclick=function(){
+    const p=card.getAttribute('data-portfolio');
+    invOpenModal(p);
+  };
+});
+document.querySelectorAll('.inv-period-btn').forEach(b=>{
+  b.onclick=function(){
+    document.querySelectorAll('.inv-period-btn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    invPeriod=b.getAttribute('data-period');
+    renderInvestments();
+  };
+});
+
+const invModal=document.getElementById('invModal');
+let invEditing=null;
+function invOpenModal(portfolio){
+  if(!months.length)return;
+  const k=months[curIdx];
+  invEditing={portfolio,k};
+  document.getElementById('invModalTitle').textContent='Editar '+portfolio;
+  document.getElementById('invMonthLabel').value=mnShort(k);
+  const cur=invGetMonth(portfolio,k)||{};
+  document.getElementById('invBalance').value=cur.balance!=null?cur.balance:'';
+  document.getElementById('invInjection').value=cur.injection!=null?cur.injection:'';
+  document.getElementById('invModalError').textContent='';
+  invModal.classList.add('active');
+}
+function invCloseModal(){invModal.classList.remove('active');invEditing=null;}
+document.getElementById('invModalClose').onclick=invCloseModal;
+document.getElementById('invModalCancel').onclick=invCloseModal;
+invModal.onclick=function(e){if(e.target===invModal)invCloseModal();};
+document.getElementById('invModalSubmit').onclick=function(){
+  if(!invEditing)return;
+  const balRaw=document.getElementById('invBalance').value;
+  const injRaw=document.getElementById('invInjection').value;
+  const errEl=document.getElementById('invModalError');
+  const balance=balRaw===''?null:parseFloat(balRaw);
+  const injection=injRaw===''?0:parseFloat(injRaw);
+  if(balance!=null&&isNaN(balance)){errEl.textContent='Saldo inválido';return;}
+  if(isNaN(injection)){errEl.textContent='Inyección inválida';return;}
+  invSaveMonth(invEditing.portfolio,invEditing.k,{balance,injection,updated_at:new Date().toISOString()});
+  invCloseModal();
+  renderInvestments();
+};
 
 // ── NAV ───────────────────────────────────────────────────────
 document.getElementById('toggleBudgets').onclick=function(){
