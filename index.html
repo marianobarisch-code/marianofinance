@@ -294,6 +294,24 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .sem-red{background:#fdf0ee;}
 .sem-green{background:var(--green-bg);}
 .fixed-total-row td{font-weight:700;background:var(--surface2);border-top:2px solid var(--border);}
+.fixed-table-3m{min-width:600px;}
+.fixed-table-3m th{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;padding:10px 8px;text-align:center;border-bottom:2px solid var(--border);background:var(--surface2);position:sticky;top:0;}
+.fixed-table-3m th:first-child{text-align:left;min-width:150px;}
+.fixed-table-3m td{padding:9px 8px;text-align:center;border-bottom:1px solid var(--border);vertical-align:middle;}
+.fixed-table-3m td:first-child{text-align:left;font-weight:500;color:var(--text);}
+.fixed-3m-paid{background:var(--green-bg);}
+.fixed-3m-unpaid{background:#fdf0ee;}
+.fixed-3m-empty{background:var(--surface2);color:var(--text3);}
+.fixed-3m-amt{font-family:'DM Mono',monospace;font-weight:500;font-size:13px;}
+.fixed-3m-status{font-size:10px;display:block;margin-top:2px;font-weight:500;}
+.fixed-3m-status.paid{color:var(--green);}
+.fixed-3m-status.unpaid{color:var(--red);}
+.fixed-3m-status.annual{color:var(--primary);font-style:italic;}
+.fixed-table-3m tr.sub-toggle td:first-child{cursor:pointer;color:var(--primary);font-weight:600;}
+.fixed-table-3m tr.sub-item td:first-child{padding-left:28px;font-weight:400;color:var(--text2);font-size:12px;}
+.fixed-table-3m tr.sub-item{display:none;}
+.fixed-table-3m tr.sub-item.visible{display:table-row;}
+.fixed-table-3m .fixed-total-row td{font-weight:700;background:var(--surface2);border-top:2px solid var(--border);}
 
 /* NW EDITOR */
 .nw-editor-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem 1.5rem;margin-bottom:1rem;}
@@ -475,7 +493,12 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
           <div class="card-title">Gastos Fijos — <span id="fixedMonthLabel"></span></div>
           <button class="fixed-edit-btn" id="fixedEditBtn">Editar</button>
         </div>
-        <div class="fixed-table-wrap">
+        <!-- 3-month overview (default view) -->
+        <div class="fixed-table-wrap" id="fixed3MonthWrap">
+          <table class="fixed-table fixed-table-3m" id="fixed3MonthTable"></table>
+        </div>
+        <!-- Single-month editor (edit mode) -->
+        <div class="fixed-table-wrap" id="fixedEditWrap" style="display:none;">
           <table class="fixed-table" id="fixedTable"></table>
         </div>
         <div id="fixedActionsRow" style="display:none;justify-content:flex-end;gap:10px;margin-top:12px;align-items:center;">
@@ -1537,19 +1560,137 @@ function fmtPayPillRead(dueDate,isPaid,paidDate,today){
   return '<span class="fixed-pay-pill" style="background:#fff9e6;color:var(--amber);">En '+diff+' días</span>';
 }
 
+function getFixed3MonthKeys(k){
+  const[y,m]=k.split('-');
+  const dt=new Date(+y,+m-1,1);
+  const keys=[];
+  for(let i=2;i>=0;i--){
+    const d=new Date(dt.getFullYear(),dt.getMonth()-i,1);
+    keys.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));
+  }
+  return keys;
+}
+function renderFixed3Month(k){
+  const mNames=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const mKeys=getFixed3MonthKeys(k);
+  const today=new Date();
+  const getRow=(name,iso)=>fixedRows.find(r=>r.month_year===iso&&r.item_name===name);
+  const fmtShort=(key)=>{const[y,m]=key.split('-');return mNames[+m-1]+' '+y.slice(2);};
+  const fmtAmt=(a)=>a?'ARS '+Math.round(a).toLocaleString('es-AR'):'—';
+  // Header
+  let html='<thead><tr><th>Ítem</th>';
+  mKeys.forEach(mk=>html+='<th>'+fmtShort(mk)+'</th>');
+  html+='</tr></thead><tbody>';
+  // Totals per month
+  const totals=[0,0,0];
+  FIXED_ITEMS.forEach(item=>{
+    html+='<tr>';
+    html+='<td>'+item+'</td>';
+    mKeys.forEach((mk,mi)=>{
+      const iso=mk.split('-')[0]+'-'+mk.split('-')[1]+'-01';
+      const row=getRow(item,iso);
+      const amount=row?parseFloat(row.amount)||0:0;
+      const paidDate=row?row.paid_date||'':'';
+      const isPaid=!!paidDate;
+      totals[mi]+=amount;
+      // Megatlon special handling
+      const isMegatlon=item==='Megatlon';
+      if(isMegatlon){
+        const cls=amount>0?'fixed-3m-paid':'fixed-3m-empty';
+        html+='<td class="'+cls+'">';
+        html+='<span class="fixed-3m-amt">'+fmtAmt(amount)+'</span>';
+        html+='<span class="fixed-3m-status annual">Pago Anual</span>';
+        html+='</td>';
+      }else if(amount===0&&!row){
+        html+='<td class="fixed-3m-empty"><span class="fixed-3m-amt" style="color:var(--text3);">—</span></td>';
+      }else{
+        const cls=isPaid?'fixed-3m-paid':'fixed-3m-unpaid';
+        const statusLbl=isPaid?'Pagado':'Pendiente';
+        const statusCls=isPaid?'paid':'unpaid';
+        html+='<td class="'+cls+'">';
+        html+='<span class="fixed-3m-amt">'+fmtAmt(amount)+'</span>';
+        html+='<span class="fixed-3m-status '+statusCls+'">'+statusLbl+'</span>';
+        html+='</td>';
+      }
+    });
+    html+='</tr>';
+  });
+  // Subscriptions
+  const subTotals=[0,0,0];
+  const allSubNames=new Set();
+  mKeys.forEach((mk,mi)=>{
+    const subs=getActiveSubscriptions(mk);
+    subs.forEach(sub=>{
+      allSubNames.add(sub.name);
+      const iso=mk.split('-')[0]+'-'+mk.split('-')[1]+'-01';
+      const row=getRow(sub.name,iso);
+      const defAmt=parseFloat(sub.default_amount)||0;
+      const amt=row?parseFloat(row.amount)||0:defAmt;
+      const cur=row?row.currency||sub.currency:sub.currency;
+      if(cur==='USD'){const lastFx=fixedRows.find(r=>r.ars_per_usd>0);const fx=lastFx?parseFloat(lastFx.ars_per_usd):1400;subTotals[mi]+=amt*fx;}
+      else subTotals[mi]+=amt;
+    });
+  });
+  html+='<tr class="sub-toggle" id="subs3mToggleRow"><td>▶ Suscripciones</td>';
+  mKeys.forEach((mk,mi)=>html+='<td style="text-align:center;"><span class="fixed-3m-amt">'+fmtAmt(subTotals[mi])+'</span></td>');
+  html+='</tr>';
+  // Individual subs (union across 3 months)
+  const subNamesArr=[...allSubNames];
+  subNamesArr.forEach(subName=>{
+    html+='<tr class="sub-item" data-sub="true"><td>'+subName+'</td>';
+    mKeys.forEach((mk,mi)=>{
+      const subs=getActiveSubscriptions(mk);
+      const sub=subs.find(s=>s.name===subName);
+      if(!sub){html+='<td class="fixed-3m-empty"><span class="fixed-3m-amt" style="color:var(--text3);">—</span></td>';return;}
+      const iso=mk.split('-')[0]+'-'+mk.split('-')[1]+'-01';
+      const row=getRow(subName,iso);
+      const defAmt=parseFloat(sub.default_amount)||0;
+      const amt=row?parseFloat(row.amount)||0:defAmt;
+      const cur=row?row.currency||sub.currency:sub.currency;
+      const fmtV=cur==='USD'?'USD '+Number(amt).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}):fmtAmt(amt);
+      html+='<td style="text-align:center;"><span class="fixed-3m-amt">'+fmtV+'</span><span class="fixed-3m-status" style="color:var(--text3);">Auto</span></td>';
+    });
+    html+='</tr>';
+  });
+  // Total row
+  html+='<tr class="fixed-total-row"><td>TOTAL</td>';
+  mKeys.forEach((mk,mi)=>html+='<td style="text-align:center;"><span class="fixed-3m-amt">'+fmtAmt(totals[mi]+subTotals[mi])+'</span></td>');
+  html+='</tr>';
+  html+='</tbody>';
+  document.getElementById('fixed3MonthTable').innerHTML=html;
+  // Toggle subs
+  const toggleRow=document.getElementById('subs3mToggleRow');
+  if(toggleRow){toggleRow.onclick=function(){
+    const open=this.querySelector('td').textContent.startsWith('▼');
+    this.querySelector('td').textContent=(open?'▶':'▼')+' Suscripciones';
+    document.querySelectorAll('#fixed3MonthTable tr.sub-item').forEach(tr=>tr.classList.toggle('visible',!open));
+  };}
+}
 function renderFixed(k){
   const[y,m]=k.split('-');
   const iso=y+'-'+m+'-01';
   const mNames=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  document.getElementById('fixedMonthLabel').textContent=mNames[+m-1]+' '+y;
+  if(editing){
+    document.getElementById('fixedMonthLabel').textContent=mNames[+m-1]+' '+y;
+  }else{
+    const mKeys3=getFixed3MonthKeys(k);
+    const mnS=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    const from3=mKeys3[0].split('-');const to3=mKeys3[2].split('-');
+    document.getElementById('fixedMonthLabel').textContent=mnS[+from3[1]-1]+' – '+mnS[+to3[1]-1]+' '+to3[0].slice(2);
+  }
   const today=new Date();
   const getRow=(name)=>fixedRows.find(r=>r.month_year===iso&&r.item_name===name);
   const editing=fixedEditMode;
 
   const editBtn=document.getElementById('fixedEditBtn');
   const actionsRow=document.getElementById('fixedActionsRow');
+  const wrap3m=document.getElementById('fixed3MonthWrap');
+  const wrapEdit=document.getElementById('fixedEditWrap');
   if(editBtn)editBtn.style.display=editing?'none':'inline-block';
   if(actionsRow)actionsRow.style.display=editing?'flex':'none';
+  if(wrap3m)wrap3m.style.display=editing?'none':'block';
+  if(wrapEdit)wrapEdit.style.display=editing?'block':'none';
+  if(!editing){renderFixed3Month(k);return;}
 
   let html='<thead><tr><th>Ítem</th><th>Vencimiento</th><th>Monto</th><th>Estado de pago</th></tr></thead><tbody>';
   let totalArs=0;
@@ -1927,8 +2068,10 @@ function nwMissingMonths(){
 function nwEditorPopulateDropdowns(){
   const monthSel=document.getElementById('nwEditMonth');
   const yearSel=document.getElementById('nwEditYear');
+  let firstPopulate=false;
   if(monthSel.options.length===0){
     NW_MONTHS_ES.forEach((name,i)=>monthSel.appendChild(new Option(name,String(i+1))));
+    firstPopulate=true;
   }
   // Years from data + cutoff + current
   const years=new Set([2026,new Date().getFullYear()]);
@@ -1945,7 +2088,7 @@ function nwEditorPopulateDropdowns(){
     sorted.forEach(y=>yearSel.appendChild(new Option(String(y),String(y))));
     if(prev&&sorted.includes(parseInt(prev)))yearSel.value=prev;
   }
-  if(!monthSel.value){
+  if(firstPopulate||!monthSel.value){
     const today=new Date();
     monthSel.value=String(today.getMonth()+1);
     yearSel.value=String(today.getFullYear());
