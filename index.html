@@ -432,10 +432,11 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
   <!-- TAB: BUDGET -->
   <div class="tab-panel active" id="tab-budget">
     <div class="budget-subtabs">
-      <button class="budget-subtab active" data-bsub="home">Gasto Variable</button>
+      <button class="budget-subtab active" data-bsub="home">Gastos variables</button>
       <button class="budget-subtab" data-bsub="fijos">Gastos Fijos</button>
     </div>
     <div class="budget-subpanel active" id="bsub-home">
+    <!-- 1. Metric cards -->
     <div class="metrics-grid-2">
       <div class="metric-card">
         <div class="metric-label">Total gastado (ARS)</div>
@@ -448,14 +449,30 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
         <div class="metric-sub" id="mExtraUsd">—</div>
       </div>
     </div>
+    <!-- 2. Add expense -->
     <button class="add-expense-btn" id="addExpenseBtn">
       <span style="font-size:18px;line-height:1;">+</span><span>Add expense</span>
     </button>
+    <!-- 3. Expense list (collapsible) -->
+    <div class="card month-exp-card">
+      <div class="card-title-row">
+        <div class="card-title">Gastos del mes — <span id="monthExpensesLabel"></span> <span style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none">— más reciente arriba</span></div>
+        <button class="chart-toggle" id="expListToggle" aria-label="Colapsar lista">▾</button>
+      </div>
+      <div class="chart-body" id="expListBody">
+        <div id="monthExpensesList"></div>
+      </div>
+    </div>
+    <!-- 4. Charts (collapsible together) -->
+    <div class="card-title-row" style="margin-top:1.2rem;margin-bottom:0.5rem;">
+      <div class="section-title" style="margin:0;">Gráficos</div>
+      <button class="chart-toggle" id="chartsGroupToggle" aria-label="Colapsar gráficos">▾</button>
+    </div>
+    <div id="chartsGroupBody">
     <div class="charts-grid">
       <div class="card chart-card" data-chart-key="pie">
         <div class="card-title-row">
           <div class="card-title">Distribución por categoría <span style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none">— clic para detalle</span></div>
-          <button class="chart-toggle" data-chart-key="pie" aria-label="Colapsar gráfico">▾</button>
         </div>
         <div class="chart-body">
         <div class="legend" id="pieLegend"></div>
@@ -465,13 +482,14 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
       <div class="card chart-card" data-chart-key="varBar">
         <div class="card-title-row">
           <div class="card-title">Evolución mensual (ARS)</div>
-          <button class="chart-toggle" data-chart-key="varBar" aria-label="Colapsar gráfico">▾</button>
         </div>
         <div class="chart-body">
         <div style="position:relative;width:100%;height:220px;"><canvas id="varBarChart"></canvas></div>
         </div>
       </div>
     </div>
+    </div>
+    <!-- 5. Budget grid + editor -->
     <div class="section-title">Presupuesto por categoría <span style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none">— clic para detalle</span></div>
     <button class="edit-toggle" id="toggleBudgets">Editar presupuestos</button>
     <div class="budget-editor" id="budgetEditor">
@@ -482,10 +500,6 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
       </div>
     </div>
     <div class="budgets-grid" id="budgetsGrid"></div>
-    <div class="card month-exp-card" style="margin-top:1.5rem;">
-      <div class="card-title">Gastos del mes — <span id="monthExpensesLabel"></span> <span style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none">— más reciente arriba</span></div>
-      <div id="monthExpensesList"></div>
-    </div>
     </div><!-- end bsub-home -->
     <div class="budget-subpanel" id="bsub-fijos">
       <div class="card">
@@ -1168,10 +1182,13 @@ function initBudgets(cats){
   // fall back to historical avg × 1.15 if no row exists.
   recomputeBudgetsFor(months[curIdx]||null,cats);
 }
+const BUDGET_MARGIN=1.20; // 20% tolerance above average
+const BUDGET_FLOOR=5000; // categories below this avg: no alert
 function recomputeBudgetsFor(monthKey,catsArg){
   const cats=catsArg||[...new Set(varRows.map(r=>r.cat))];
   const iso=monthKey?(monthKey+'-01'):null;
   cats.forEach(cat=>{
+    // 1. If user saved a manual budget for this month, use it
     if(iso){
       const matches=budgetRows.filter(r=>r.category===cat&&r.month_year<=iso);
       if(matches.length){
@@ -1180,11 +1197,28 @@ function recomputeBudgetsFor(monthKey,catsArg){
         return;
       }
     }
-    // Fallback: historical avg × 1.15 (original behavior)
+    // 2. Fallback: 3-month rolling average × margin
+    if(monthKey){
+      const[yk,mk2]=monthKey.split('-').map(Number);
+      const last3=[];
+      for(let i=0;i<3;i++){
+        let mm=mk2-i,yy=yk;
+        if(mm<=0){mm+=12;yy--;}
+        last3.push(yy+'-'+String(mm).padStart(2,'0'));
+      }
+      const monthsWithData=last3.filter(m=>varRows.some(r=>mk(r.date)===m&&r.cat===cat));
+      if(monthsWithData.length>0){
+        const total3=last3.reduce((s,m)=>s+varRows.filter(r=>mk(r.date)===m&&r.cat===cat).reduce((ss,r)=>ss+r.amt,0),0);
+        const avg3=total3/monthsWithData.length;
+        budgets[cat]=avg3<BUDGET_FLOOR?0:Math.round(avg3*BUDGET_MARGIN);
+        return;
+      }
+    }
+    // 3. Last resort: all-time avg × margin
     const hist=varRows.filter(r=>r.cat===cat);
     const ms=[...new Set(hist.map(r=>mk(r.date)))];
     const avg=ms.length?hist.reduce((s,r)=>s+r.amt,0)/ms.length:0;
-    budgets[cat]=Math.round(avg*1.15);
+    budgets[cat]=avg<BUDGET_FLOOR?0:Math.round(avg*BUDGET_MARGIN);
   });
 }
 
@@ -1889,6 +1923,26 @@ async function saveFixedExpenses(){
 }
 
 document.addEventListener('DOMContentLoaded',function(){
+  // Expense list toggle
+  const expListToggle=document.getElementById('expListToggle');
+  if(expListToggle){
+    expListToggle.addEventListener('click',function(){
+      const body=document.getElementById('expListBody');
+      const open=body.style.display!=='none';
+      body.style.display=open?'none':'block';
+      this.textContent=open?'\u25B8':'\u25BE';
+    });
+  }
+  // Charts group toggle
+  const chartsGroupToggle=document.getElementById('chartsGroupToggle');
+  if(chartsGroupToggle){
+    chartsGroupToggle.addEventListener('click',function(){
+      const body=document.getElementById('chartsGroupBody');
+      const open=body.style.display!=='none';
+      body.style.display=open?'none':'block';
+      this.textContent=open?'\u25B8':'\u25BE';
+    });
+  }
   const editBtn=document.getElementById('fixedEditBtn');
   const cancelBtn=document.getElementById('fixedCancelBtn');
   if(editBtn)editBtn.onclick=function(){fixedEditMode=true;if(months&&months.length)renderFixed(months[curIdx]);};
