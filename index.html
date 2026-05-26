@@ -1670,6 +1670,9 @@ function renderFixed(k){
   const[y,m]=k.split('-');
   const iso=y+'-'+m+'-01';
   const mNames=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const today=new Date();
+  const getRow=(name)=>fixedRows.find(r=>r.month_year===iso&&r.item_name===name);
+  const editing=fixedEditMode;
   if(editing){
     document.getElementById('fixedMonthLabel').textContent=mNames[+m-1]+' '+y;
   }else{
@@ -1678,9 +1681,6 @@ function renderFixed(k){
     const from3=mKeys3[0].split('-');const to3=mKeys3[2].split('-');
     document.getElementById('fixedMonthLabel').textContent=mnS[+from3[1]-1]+' – '+mnS[+to3[1]-1]+' '+to3[0].slice(2);
   }
-  const today=new Date();
-  const getRow=(name)=>fixedRows.find(r=>r.month_year===iso&&r.item_name===name);
-  const editing=fixedEditMode;
 
   const editBtn=document.getElementById('fixedEditBtn');
   const actionsRow=document.getElementById('fixedActionsRow');
