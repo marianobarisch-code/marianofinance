@@ -168,7 +168,7 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .detail-metric{background:var(--surface2);border-radius:var(--radius-sm);padding:12px 14px;}
 .detail-chart-wrap{position:relative;width:100%;height:200px;margin-bottom:1.5rem;}
 .detail-section-title{font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;}
-.txn-list{display:flex;flex-direction:column;gap:2px;max-height:300px;overflow-y:auto;border-radius:var(--radius-sm);overflow:hidden;}
+.txn-list{display:flex;flex-direction:column;gap:2px;border-radius:var(--radius-sm);overflow-y:auto;}
 .txn-item{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;font-size:13px;}
 .txn-item:nth-child(odd){background:var(--surface2);}
 .txn-name{color:var(--text);flex:1;}
@@ -177,6 +177,10 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .txn-actions{display:flex;gap:2px;margin-left:8px;}
 .txn-action-btn{background:none;border:none;cursor:pointer;padding:3px 6px;border-radius:4px;font-size:13px;color:var(--text3);line-height:1;}
 .txn-action-btn:hover{background:#e8e6e0;color:var(--text1);}
+.bal-period-bar{display:flex;gap:6px;margin-bottom:14px;}
+.bal-period-btn{padding:6px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface);font-size:13px;font-weight:500;cursor:pointer;color:var(--text2);font-family:'DM Sans',sans-serif;transition:all .15s;}
+.bal-period-btn:hover{border-color:var(--primary);color:var(--primary);}
+.bal-period-btn.active{background:var(--primary);color:#fff;border-color:var(--primary);}
 .txn-action-btn.danger:hover{color:var(--red);}
 .month-exp-card{max-width:780px;}
 .month-exp-row{display:grid;grid-template-columns:64px 1fr 110px 130px 56px;gap:10px;align-items:center;padding:7px 10px;font-size:13px;border-bottom:1px solid var(--border);}
@@ -369,28 +373,46 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 
   <!-- TAB: BALANCE -->
   <div class="tab-panel" id="tab-balance">
+    <div class="bal-period-bar">
+      <button class="bal-period-btn active" data-bal-period="month">Mes actual</button>
+      <button class="bal-period-btn" data-bal-period="ytd">Year to date</button>
+    </div>
+
     <div class="metrics-grid">
       <div class="metric-card">
-        <div class="metric-label">Ingreso total</div>
+        <div class="metric-label" id="bIncomeLabel">Ingreso total</div>
         <div class="metric-value" id="bIncome">—</div>
         <div class="metric-sub" id="bIncomeSub">—</div>
       </div>
       <div class="metric-card">
-        <div class="metric-label">Egresos totales</div>
+        <div class="metric-label" id="bExpenseLabel">Egresos totales</div>
         <div class="metric-value" id="bExpense">—</div>
         <div class="metric-sub" id="bExpenseSub">—</div>
       </div>
       <div class="metric-card">
-        <div class="metric-label">Balance</div>
+        <div class="metric-label" id="bBalanceLabel">Balance</div>
         <div class="metric-value" id="bBalance">—</div>
         <div class="metric-sub" id="bBalanceSub">—</div>
       </div>
       <div class="metric-card">
-        <div class="metric-label">% Ahorro</div>
+        <div class="metric-label" id="bSavingsLabel">% Ahorro</div>
         <div class="metric-value" id="bSavings">—</div>
         <div class="savings-bar-wrap">
           <div class="savings-bar-bg"><div class="savings-bar-fill" id="savingsBarFill" style="width:0%"></div></div>
         </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="bal-header-bar">
+        <div class="card-title">Detalle del mes</div>
+        <button class="bal-edit-btn" id="balEditBtn">Editar</button>
+      </div>
+      <table class="bal-table" id="balTable"></table>
+      <div id="balActionsRow" style="display:none;justify-content:flex-end;gap:10px;margin-top:12px;align-items:center;">
+        <span id="balStatus" style="font-size:12px;font-weight:500;align-self:center;"></span>
+        <button class="bal-cancel-btn" id="balCancelBtn">Cancelar</button>
+        <button class="btn-primary" id="balSaveBtn">Guardar cambios</button>
       </div>
     </div>
 
@@ -412,19 +434,6 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
         <div class="chart-body">
         <div style="position:relative;width:100%;height:200px;"><canvas id="balLineChart"></canvas></div>
         </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="bal-header-bar">
-        <div class="card-title">Detalle del mes</div>
-        <button class="bal-edit-btn" id="balEditBtn">Editar</button>
-      </div>
-      <table class="bal-table" id="balTable"></table>
-      <div id="balActionsRow" style="display:none;justify-content:flex-end;gap:10px;margin-top:12px;align-items:center;">
-        <span id="balStatus" style="font-size:12px;font-weight:500;align-self:center;"></span>
-        <button class="bal-cancel-btn" id="balCancelBtn">Cancelar</button>
-        <button class="btn-primary" id="balSaveBtn">Guardar cambios</button>
       </div>
     </div>
   </div>
@@ -1270,32 +1279,48 @@ function renderBalance(k){
   const savPct=get('% Saved over Income',mk2)*100;
   const savPctClean=income>0?Math.round(balance/income*100):Math.round(savPct);
 
+  // YTD aggregation
+  let dispIncome=income, dispExpense=expense, dispBalance=balance, dispSavPct=savPctClean;
+  if(balPeriod==='ytd'){
+    const[cy]=k.split('-');
+    const ytdMonths=months.filter(m=>m.startsWith(cy+'-')&&m<=k);
+    dispIncome=ytdMonths.reduce((s,m)=>s+get('Ingreso total',getBalMonthKey(m)),0);
+    dispExpense=ytdMonths.reduce((s,m)=>s+get('Egresos',getBalMonthKey(m)),0);
+    dispBalance=ytdMonths.reduce((s,m)=>s+get('Balance',getBalMonthKey(m)),0);
+    dispSavPct=dispIncome>0?Math.round(dispBalance/dispIncome*100):0;
+  }
+
   const prevIncome=get('Ingreso total',prev);
   const prevExpense=get('Egresos',prev);
   const prevBalance=get('Balance',prev);
 
+  const ytdLabel=balPeriod==='ytd'?' (YTD)':'';
+  document.getElementById('bIncomeLabel').textContent='Ingreso total'+ytdLabel;
+  document.getElementById('bExpenseLabel').textContent='Egresos totales'+ytdLabel;
+  document.getElementById('bBalanceLabel').textContent='Balance'+ytdLabel;
+  document.getElementById('bSavingsLabel').textContent='% Ahorro'+ytdLabel;
   const incEl=document.getElementById('bIncome');
-  incEl.textContent=fmtUSD(income);
+  incEl.textContent=fmtUSD(dispIncome);
   incEl.className='metric-value pos';
-  document.getElementById('bIncomeSub').textContent=prev&&prevIncome?(()=>{const d=Math.round((income-prevIncome)/prevIncome*100);return(d>=0?'+':'')+d+'% vs '+mnShort(months[curIdx-1]);})():'';
+  document.getElementById('bIncomeSub').textContent=balPeriod==='ytd'?'':(prev&&prevIncome?(()=>{const d=Math.round((income-prevIncome)/prevIncome*100);return(d>=0?'+':'')+d+'% vs '+mnShort(months[curIdx-1]);})():'');
 
   const expEl=document.getElementById('bExpense');
-  expEl.textContent=fmtUSD(expense);
+  expEl.textContent=fmtUSD(dispExpense);
   expEl.className='metric-value neg';
-  document.getElementById('bExpenseSub').textContent=prev&&prevExpense?(()=>{const d=Math.round((expense-prevExpense)/prevExpense*100);const el=document.getElementById('bExpenseSub');el.className='metric-sub '+(d>5?'up':d<-5?'down':'neutral');return(d>=0?'+':'')+d+'% vs '+mnShort(months[curIdx-1]);})():'';
+  document.getElementById('bExpenseSub').textContent=balPeriod==='ytd'?'':(prev&&prevExpense?(()=>{const d=Math.round((expense-prevExpense)/prevExpense*100);const el=document.getElementById('bExpenseSub');el.className='metric-sub '+(d>5?'up':d<-5?'down':'neutral');return(d>=0?'+':'')+d+'% vs '+mnShort(months[curIdx-1]);})():'');
 
   const balEl=document.getElementById('bBalance');
-  balEl.textContent=fmtUSD(balance);
-  balEl.className='metric-value '+(balance>=0?'pos':'neg');
-  document.getElementById('bBalanceSub').textContent=prev&&prevBalance?(()=>{const d=Math.round((balance-prevBalance)/Math.abs(prevBalance)*100);return(d>=0?'+':'')+d+'% vs '+mnShort(months[curIdx-1]);})():'';
+  balEl.textContent=fmtUSD(dispBalance);
+  balEl.className='metric-value '+(dispBalance>=0?'pos':'neg');
+  document.getElementById('bBalanceSub').textContent=balPeriod==='ytd'?'':(prev&&prevBalance?(()=>{const d=Math.round((balance-prevBalance)/Math.abs(prevBalance)*100);return(d>=0?'+':'')+d+'% vs '+mnShort(months[curIdx-1]);})():'');
 
   const savEl=document.getElementById('bSavings');
-  savEl.textContent=savPctClean+'%';
-  savEl.className='metric-value '+(savPctClean>=30?'pos':savPctClean>=0?'warn':'neg');
+  savEl.textContent=dispSavPct+'%';
+  savEl.className='metric-value '+(dispSavPct>=30?'pos':dispSavPct>=0?'warn':'neg');
   const barFill=document.getElementById('savingsBarFill');
-  const barPct=Math.max(0,Math.min(100,savPctClean));
+  const barPct=Math.max(0,Math.min(100,dispSavPct));
   barFill.style.width=barPct+'%';
-  barFill.style.background=savPctClean>=30?C_POS:savPctClean>=0?C_WARN:C_NEG;
+  barFill.style.background=dispSavPct>=30?C_POS:dispSavPct>=0?C_WARN:C_NEG;
 
   // Charts — use filtered months
   const fm=getFilteredMonths();
@@ -1562,6 +1587,7 @@ async function saveCategoryBudgets(){
 
 // ── INCOME & SPENDING edit-mode flag (gates the editable bal-cell inputs) ──
 let balEditMode=false;
+let balPeriod='month'; // 'month' or 'ytd'
 
 // ── FIXED EXPENSES (sub-tab) ──────────────────────────────────
 let fixedEditMode=false;
@@ -2365,6 +2391,16 @@ function closeDetail(){document.getElementById('overlay').classList.remove('open
 document.getElementById('closeDetail').onclick=closeDetail;
 document.getElementById('overlay').onclick=e=>{if(e.target===document.getElementById('overlay'))closeDetail();};
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDetail();});
+
+// ── Balance period toggle (Mes actual / YTD) ──
+document.querySelectorAll('.bal-period-btn').forEach(btn=>{
+  btn.onclick=function(){
+    document.querySelectorAll('.bal-period-btn').forEach(b=>b.classList.remove('active'));
+    this.classList.add('active');
+    balPeriod=this.dataset.balPeriod;
+    if(months&&months.length)renderBalance(months[curIdx]);
+  };
+});
 let currentDetailCat=null;
 document.getElementById('txnList').onclick=async e=>{
   const btn=e.target.closest('.txn-action-btn');
