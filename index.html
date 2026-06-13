@@ -376,6 +376,7 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
     <div class="bal-period-bar">
       <button class="bal-period-btn active" data-bal-period="month">Mes actual</button>
       <button class="bal-period-btn" data-bal-period="ytd">Year to date</button>
+      <button id="addIncomeBtn" style="margin-left:auto;padding:6px 16px;border-radius:8px;border:none;background:var(--green);color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">+ Registrar ingreso</button>
     </div>
 
     <div class="metrics-grid">
@@ -736,6 +737,62 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
     </div>
   </div>
 </div>
+
+<!-- MODAL: Registrar ingreso -->
+<div class="modal-overlay" id="addIncomeModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Registrar ingreso</div>
+      <button class="modal-close" id="addIncomeClose">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label class="form-label">Categoría</label>
+        <div class="combobox" id="inCatCombo">
+          <input type="text" class="form-input" id="inCatInput" placeholder="Empezá a escribir..." autocomplete="off">
+          <div class="combobox-list" id="inCatList"></div>
+        </div>
+      </div>
+      <div class="form-row" id="inSubCatRow" style="display:none">
+        <label class="form-label">Subcategoría</label>
+        <div class="combobox" id="inSubCatCombo">
+          <input type="text" class="form-input" id="inSubCatInput" placeholder="Seleccioná subcategoría..." autocomplete="off">
+          <div class="combobox-list" id="inSubCatList"></div>
+        </div>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Moneda</label>
+        <div class="bal-period-bar" style="margin-bottom:0">
+          <button type="button" class="bal-period-btn active" id="inCurUSD">USD</button>
+          <button type="button" class="bal-period-btn" id="inCurARS">ARS</button>
+        </div>
+      </div>
+      <div class="form-row form-row-split">
+        <div>
+          <label class="form-label">Fecha</label>
+          <input type="date" class="form-input" id="inDate">
+        </div>
+        <div>
+          <label class="form-label" id="inAmountLabel">Monto (USD)</label>
+          <input type="number" class="form-input" id="inAmount" placeholder="0" min="0" step="0.01">
+        </div>
+      </div>
+      <div class="form-row" id="inFxRow">
+        <div class="fx-display" id="inFxDisplay">Obteniendo TC blue...</div>
+        <div class="fx-manual" id="inFxManual" style="display:none">
+          <label class="form-label">TC manual (ARS por USD)</label>
+          <input type="number" class="form-input" id="inFxInput" placeholder="ej. 1430" min="0" step="0.01">
+          <button class="btn-link" id="inFxRetry" type="button">Reintentar API</button>
+        </div>
+      </div>
+      <div class="form-error" id="inError"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" id="inCancel">Cancelar</button>
+      <button class="btn-primary" id="inSubmit">Guardar ingreso</button>
+    </div>
+  </div>
+</div>
 <script>
 const API_KEY='AIzaSyBq2Le9PXpD93lhLWv7ck-j-ctbssijtN4';
 const SHEET_ID='1PI9Yy_GVQOqBLxxByYP5Y99swbdVGNRavTMC0KIY2QU';
@@ -759,6 +816,7 @@ const nwMonthIso=(y,m)=>y+'-'+String(m).padStart(2,'0')+'-01';
 const nwSlug=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 let sbNwRows=[];
 let mbRows=[]; // monthly_balance manual entries (post-cutoff Sueldo, Comms+Exp, Passive, Alquiler)
+let incomeRows=[]; // income_entries individual income entries (from INCOME_CUTOFF onward)
 let budgetRows=[]; // category_budgets per-month (step-wise lookup)
 let subsRegistry=[]; // subscriptions registry (active_from/removed_from)
 let subsAddOpen=false; // toggle for the inline 'add subscription' form
@@ -786,6 +844,12 @@ const SUPABASE_URL='https://afbhhtrbodflxvrjfwyf.supabase.co';
 const SUPABASE_ANON_KEY='sb_publishable_-kOChgUMkLSQmpJQ8WJ1VA_IR5RfylD';
 const CUTOFF_DATE='2026-05-01'; // desde esta fecha (inclusive) los gastos viven en Supabase
 const CATEGORIES=['Planes Amigos','Uber/Taxis','Planes Maria','Salud','Comidas','Café','Delivery','Estética','Actividad Física','Auto','Supermercados','Hogar','Planes Familia','Otros','Ropa','Suplementos','Eventos','Mascotas','Extraordinary'];
+// ===== Income module config =====
+const INCOME_CUTOFF='2026-06-01'; // desde Junio los ingresos se cargan uno por uno en income_entries
+const INCOME_CATEGORIES=['Sueldo','Comisiones Storyly','Passive Income','Referidos'];
+const INCOME_PASSIVE_SUBCATS=['QUEM','Littio','Airbnb'];
+// Mapea cada categoría de ingreso a su fila en la tabla de Income & Spending
+const INCOME_ROW_MAP={'Sueldo':'Sueldo','Comisiones Storyly':'Comms + Expenses','Passive Income':'Passive Income','Referidos':'Otros'};
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 
 const fmtUSD=v=>'$'+Math.round(v).toLocaleString('en-US');
@@ -856,6 +920,11 @@ async function fetchMonthlyBalance(){
   if(error){console.warn('monthly_balance fetch:',error.message);return[];}
   return data||[];
 }
+async function fetchIncomeEntries(){
+  const{data,error}=await sb.from('income_entries').select('*').order('date',{ascending:true});
+  if(error){console.warn('income_entries fetch:',error.message);return[];}
+  return data||[];
+}
 async function fetchCategoryBudgets(){
   const{data,error}=await sb.from('category_budgets').select('*').order('month_year',{ascending:true});
   if(error){console.warn('category_budgets fetch:',error.message);return[];}
@@ -881,7 +950,7 @@ async function saveManualBalance(item,monthKey,value){
 async function loadData(){
   setStatus('Cargando...','loading');
   try{
-   const[varVals,balVals,nwVals,sbExpenses,sbNw,sbFixed,sbMb,sbCb,sbSubs]=await Promise.all([
+   const[varVals,balVals,nwVals,sbExpenses,sbNw,sbFixed,sbMb,sbCb,sbSubs,sbIncome]=await Promise.all([
       fetchSheet('Variables!A:D'),
       fetchSheet("'Income and Expending'!A:BZ"),
       fetchSheet("'Net Worth'!A:BZ"),
@@ -890,19 +959,22 @@ async function loadData(){
       fetchFixedExpenses(),
       fetchMonthlyBalance(),
       fetchCategoryBudgets(),
-      fetchSubscriptions()
+      fetchSubscriptions(),
+      fetchIncomeEntries()
     ]);
     sbNwRows=sbNw;
     fixedRows=sbFixed;
     mbRows=sbMb;
     budgetRows=sbCb;
     subsRegistry=sbSubs;
+    incomeRows=sbIncome;
     processVariables(varVals,sbExpenses);
     processBalance(balVals);
     processNetWorth(nwVals);
     overlaySupabaseVariables();
     overlayFixedExpenses();
     overlayMonthlyBalance();
+    overlaySupabaseIncome();
     recomputeBalanceTotals();
     overlaySupabaseNetWorth();
     populatePickers();
@@ -1028,6 +1100,43 @@ function overlayMonthlyBalance(){
     if(!ITEMS.includes(r.item_name))continue;
     if(!balData.rowMap[r.item_name])balData.rowMap[r.item_name]={};
     balData.rowMap[r.item_name][monthLabel]=parseFloat(r.amount_usd)||0;
+  }
+}
+
+// Desde INCOME_CUTOFF (Junio), Sueldo / Comms+Expenses / Passive Income / Otros se
+// calculan sumando income_entries (en USD), reemplazando la carga manual de monthly_balance.
+// Mayo y meses previos quedan intactos (siguen viniendo de monthly_balance / Sheets).
+function overlaySupabaseIncome(){
+  if(!balData.rowMap||!balData.monthCols)return;
+  const cutoff=new Date(INCOME_CUTOFF+'T00:00:00');
+  const monthNamesLc=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const monthNamesEs=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const ROWS=['Sueldo','Comms + Expenses','Passive Income','Otros'];
+  // Para cada mes >= INCOME_CUTOFF que exista en la tabla, init a 0 (sobreescribe monthly_balance/Sheets)
+  for(const[col,monthLabel]of Object.entries(balData.monthCols)){
+    const m=monthLabel.match(/^(\w+)\s+(\d{2})$/i);
+    if(!m)continue;
+    const monthIdx=monthNamesLc.indexOf(m[1].toLowerCase());
+    if(monthIdx<0)continue;
+    const year=2000+parseInt(m[2]);
+    if(new Date(year,monthIdx,1)<cutoff)continue;
+    ROWS.forEach(r=>{
+      if(!balData.rowMap[r])balData.rowMap[r]={};
+      balData.rowMap[r][monthLabel]=0;
+    });
+  }
+  // Sumar cada ingreso (amount_usd) en la fila mapeada del mes correspondiente
+  for(const r of incomeRows){
+    if(!r.date)continue;
+    const[y,mm]=r.date.split('-');
+    if(!y||!mm)continue;
+    const d=new Date(parseInt(y),parseInt(mm)-1,1);
+    if(d<cutoff)continue;
+    const monthLabel=monthNamesEs[parseInt(mm)-1]+' '+y.slice(2);
+    const row=INCOME_ROW_MAP[r.category];
+    if(!row)continue;
+    if(!balData.rowMap[row])balData.rowMap[row]={};
+    balData.rowMap[row][monthLabel]=(balData.rowMap[row][monthLabel]||0)+(parseFloat(r.amount_usd)||0);
   }
 }
 
@@ -1371,7 +1480,10 @@ function renderBalance(k){
       const mk3=getBalMonthKey(m);
       const v=get(row.mainKey,mk3);
       const col=row.isSection?(v>=0?'':'negative'):'';
-      const isEditable=row.editable&&m>='2026-05';
+      // Sueldo/Comms/Passive: editables solo hasta Mayo; desde Junio se calculan desde income_entries.
+      // Alquiler: editable en todos los meses post-cutoff.
+      const incomeManaged=['Sueldo','Comms + Expenses','Passive Income'].includes(row.mainKey);
+      const isEditable=row.editable&&m>='2026-05'&&!(incomeManaged&&m>=INCOME_CUTOFF.slice(0,7));
       if(isEditable&&balEditMode){
         html+=`<td><input type="number" class="bal-cell-input" data-item="${row.mainKey}" data-month="${m}" value="${v||''}" step="0.01" placeholder="0"></td>`;
       }else{
@@ -2994,77 +3106,165 @@ document.getElementById('fixedSaveBtn').onclick=saveFixedExpenses;
   exModal.onclick=e=>{if(e.target===exModal)exCloseModal();};
 })();
 
-// ── BUDGET SUB-TABS ───────────────────────────────────────────
-document.querySelectorAll('.budget-subtab').forEach(btn=>{
-  btn.onclick=()=>{
-    document.querySelectorAll('.budget-subtab').forEach(b=>b.classList.remove('active'));
-    document.querySelectorAll('.budget-subpanel').forEach(p=>p.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('bsub-'+btn.dataset.bsub).classList.add('active');
-  };
-});
-document.getElementById('fixedSaveBtn').onclick=saveFixedExpenses;
-
-// ── EXTRAORDINARY MODAL EXTENSION ─────────────────────────────
+// ── INCOME MODAL (Registrar ingreso) ──────────────────────────
 (function(){
-  const modalBody=document.querySelector('#addExpenseModal .modal-body');
-  const subCatRow=document.createElement('div');
-  subCatRow.className='form-row';subCatRow.id='exSubCatRow';subCatRow.style.display='none';
-  subCatRow.innerHTML='<label class="form-label">Subcategor\u00eda</label><div class="combobox" id="exSubCatCombo"><input type="text" class="form-input" id="exSubCatInput" placeholder="Selecci\u00f3n\u00e1 subcategor\u00eda..." autocomplete="off"><div class="combobox-list" id="exSubCatList"></div></div>';
-  const catRow=document.querySelector('#exCatCombo').closest('.form-row');
-  catRow.after(subCatRow);
-  const curRow=document.createElement('div');curRow.className='form-row';curRow.id='exCurrencyRow';curRow.style.display='none';
-  curRow.innerHTML='<label class="form-label">Moneda</label><div style="font-size:13px;color:var(--text2);padding:8px 0;">USD (los gastos extraordinarios se registran en d\u00f3lares)</div>';
-  const amtRow=document.querySelector('#exAmount').closest('.form-row-split');
-  amtRow.before(curRow);
-  let exSubCatSelected='';
+  const inModal=document.getElementById('addIncomeModal');
+  const inCatInput=document.getElementById('inCatInput');
+  const inCatCombo=document.getElementById('inCatCombo');
+  const inCatList=document.getElementById('inCatList');
+  const inSubCatRow=document.getElementById('inSubCatRow');
+  const inSubCatInput=document.getElementById('inSubCatInput');
+  const inSubCatCombo=document.getElementById('inSubCatCombo');
+  const inSubCatList=document.getElementById('inSubCatList');
+  const inCurUSD=document.getElementById('inCurUSD');
+  const inCurARS=document.getElementById('inCurARS');
+  const inAmountLabel=document.getElementById('inAmountLabel');
+  const inDateEl=document.getElementById('inDate');
+  const inAmountEl=document.getElementById('inAmount');
+  const inFxDisplay=document.getElementById('inFxDisplay');
+  const inFxManual=document.getElementById('inFxManual');
+  const inFxInput=document.getElementById('inFxInput');
+  const inFxRetry=document.getElementById('inFxRetry');
+  const inErrorEl=document.getElementById('inError');
+  const inSubmitBtn=document.getElementById('inSubmit');
 
-  exCatList.onmousedown=function(e){
-    const item=e.target.closest('.combobox-item');if(!item)return;e.preventDefault();
-    const cat=item.dataset.cat;exCatInput.value=cat;exCatSelected=cat;exCatCombo.classList.remove('open');
-    if(cat==='Extraordinary'){subCatRow.style.display='block';curRow.style.display='block';renderSC(EXTRA_CATEGORIES);exSubCatSelected='';document.getElementById('exSubCatInput').value='';}
-    else{subCatRow.style.display='none';curRow.style.display='none';}
-  };
-  function renderSC(list){document.getElementById('exSubCatList').innerHTML=list.map(c=>'<div class="combobox-item" data-cat="'+c+'">'+c+'</div>').join('');}
-  const scIn=document.getElementById('exSubCatInput'),scCombo=document.getElementById('exSubCatCombo'),scList=document.getElementById('exSubCatList');
-  scIn.onfocus=()=>{scCombo.classList.add('open');renderSC(exSubCatSelected==='Viajes'?EXTRA_SUBCATS_VIAJES:EXTRA_CATEGORIES);};
-  scIn.oninput=()=>{scCombo.classList.add('open');exSubCatSelected='';const q=normStr(scIn.value);const all=[...EXTRA_CATEGORIES,...EXTRA_SUBCATS_VIAJES];renderSC(q?all.filter(c=>normStr(c).includes(q)):EXTRA_CATEGORIES);};
-  scIn.onblur=()=>{setTimeout(()=>scCombo.classList.remove('open'),150);};
-  scList.onmousedown=function(e){
-    const item=e.target.closest('.combobox-item');if(!item)return;e.preventDefault();
-    const cat=item.dataset.cat;
-    if(cat==='Viajes'){exSubCatSelected=cat;scIn.value='Viajes \u2192 ';renderSC(EXTRA_SUBCATS_VIAJES);scCombo.classList.add('open');}
-    else{exSubCatSelected=cat;scIn.value=cat;scCombo.classList.remove('open');}
+  let inCatSelected='';
+  let inSubCatSelected='';
+  let inCurrency='USD';
+  let inCurrentFx=null;
+
+  async function inLoadFx(){
+    inFxDisplay.className='fx-display';
+    inFxDisplay.textContent='Obteniendo TC blue...';
+    inFxManual.style.display='none';
+    inCurrentFx=null;
+    try{
+      const fx=await fetchBlueRate();
+      inCurrentFx=fx;
+      inFxDisplay.classList.add('ok');
+      inFxDisplay.textContent='TC blue (promedio compra/venta): '+fmtFx(fx);
+    }catch(err){
+      inFxDisplay.classList.add('error');
+      inFxDisplay.textContent='No se pudo obtener TC blue: '+err.message;
+      inFxManual.style.display='block';
+      inFxInput.value='';
+    }
+  }
+
+  function inSetCurrency(cur){
+    inCurrency=cur;
+    inCurUSD.classList.toggle('active',cur==='USD');
+    inCurARS.classList.toggle('active',cur==='ARS');
+    inAmountLabel.textContent='Monto ('+cur+')';
+  }
+  inCurUSD.onclick=()=>inSetCurrency('USD');
+  inCurARS.onclick=()=>inSetCurrency('ARS');
+
+  function inRenderCatList(query){
+    const q=normStr(query);
+    const matches=q?INCOME_CATEGORIES.filter(c=>normStr(c).startsWith(q)):INCOME_CATEGORIES;
+    inCatList.innerHTML=matches.length?matches.map(c=>`<div class="combobox-item" data-cat="${c}">${c}</div>`).join(''):'<div class="combobox-empty">Sin coincidencias</div>';
+  }
+  function inRenderSubCatList(){
+    inSubCatList.innerHTML=INCOME_PASSIVE_SUBCATS.map(c=>`<div class="combobox-item" data-cat="${c}">${c}</div>`).join('');
+  }
+  function inHandleCatChange(cat){
+    if(cat==='Passive Income'){
+      inSubCatRow.style.display='block';
+      inSubCatSelected='';
+      inSubCatInput.value='';
+      inRenderSubCatList();
+    }else{
+      inSubCatRow.style.display='none';
+      inSubCatSelected='';
+    }
+  }
+
+  inCatInput.onfocus=()=>{inCatCombo.classList.add('open');inRenderCatList(inCatInput.value);};
+  inCatInput.oninput=()=>{inCatCombo.classList.add('open');inCatSelected='';inRenderCatList(inCatInput.value);};
+  inCatInput.onblur=()=>{setTimeout(()=>inCatCombo.classList.remove('open'),150);};
+  inCatList.onmousedown=e=>{
+    const item=e.target.closest('.combobox-item');
+    if(!item)return;
+    e.preventDefault();
+    inCatInput.value=item.dataset.cat;
+    inCatSelected=item.dataset.cat;
+    inCatCombo.classList.remove('open');
+    inHandleCatChange(inCatSelected);
   };
 
-  const origSubmit=exSubmitBtn.onclick;
-  exSubmitBtn.onclick=async function(){
-    exErrorEl.textContent='';
-    const cat=exCatSelected||exCatInput.value.trim();
-    if(cat==='Extraordinary'){
-      const name=exNameEl.value.trim(),date=exDateEl.value,amount=parseFloat(exAmountEl.value);
-      if(!exSubCatSelected){exErrorEl.textContent='Eleg\u00ed una subcategor\u00eda.';return;}
-      if(!name){exErrorEl.textContent='Falta el nombre.';return;}
-      if(!date){exErrorEl.textContent='Falta la fecha.';return;}
-      if(date<CUTOFF_DATE){exErrorEl.textContent='Fecha debe ser '+CUTOFF_DATE+' o posterior.';return;}
-      if(!(amount>0)){exErrorEl.textContent='Monto debe ser mayor a 0.';return;}
-      let fx=exCurrentFx;if(!fx||fx<=0){try{fx=await fetchBlueRate();exCurrentFx=fx;}catch(e){exErrorEl.textContent='Necesito el TC.';return;}}
-      exSubmitBtn.disabled=true;exSubmitBtn.textContent='Guardando...';
-      try{
-        const payload={date,name,amount:amount*fx,category:'Extraordinary',ars_per_usd:fx,amount_usd:amount,subcategory:exSubCatSelected,is_extraordinary:true,currency:'USD'};
-        if(exEditingId){const{error}=await sb.from('expenses').update(payload).eq('id',exEditingId);if(error)throw new Error(error.message);}
-        else{const{error}=await sb.from('expenses').insert(payload);if(error)throw new Error(error.message);}
-        exCloseModal();await loadData();if(currentDetailCat)openDetail(currentDetailCat);
-      }catch(err){exErrorEl.textContent='Error: '+err.message;}
-      finally{exSubmitBtn.disabled=false;exSubmitBtn.textContent=exEditingId?'Guardar cambios':'Guardar gasto';}
-    }else{origSubmit.call(this);}
+  inSubCatInput.onfocus=()=>{inSubCatCombo.classList.add('open');inRenderSubCatList();};
+  inSubCatInput.onblur=()=>{setTimeout(()=>inSubCatCombo.classList.remove('open'),150);};
+  inSubCatList.onmousedown=e=>{
+    const item=e.target.closest('.combobox-item');
+    if(!item)return;
+    e.preventDefault();
+    inSubCatInput.value=item.dataset.cat;
+    inSubCatSelected=item.dataset.cat;
+    inSubCatCombo.classList.remove('open');
   };
-  const origClose=exCloseModal;
-  exCloseModal=function(){subCatRow.style.display='none';curRow.style.display='none';exSubCatSelected='';origClose();};
-  document.getElementById('addExpenseClose').onclick=exCloseModal;
-  document.getElementById('exCancel').onclick=exCloseModal;
-  exModal.onclick=e=>{if(e.target===exModal)exCloseModal();};
+
+  inFxRetry.onclick=inLoadFx;
+  inFxInput.oninput=()=>{const v=parseFloat(inFxInput.value);inCurrentFx=(v>0)?v:null;};
+
+  function inOpenModal(){
+    inErrorEl.textContent='';
+    inCatInput.value='';
+    inCatSelected='';
+    inSubCatSelected='';
+    inSubCatInput.value='';
+    inSubCatRow.style.display='none';
+    inAmountEl.value='';
+    inSetCurrency('USD');
+    const today=new Date();
+    inDateEl.value=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+    inSubmitBtn.textContent='Guardar ingreso';
+    inLoadFx();
+    inModal.classList.add('active');
+    inCatInput.focus();
+    inRenderCatList('');
+  }
+  function inCloseModal(){
+    inModal.classList.remove('active');
+    inCatCombo.classList.remove('open');
+    inSubCatCombo.classList.remove('open');
+  }
+
+  document.getElementById('addIncomeBtn').onclick=inOpenModal;
+  document.getElementById('addIncomeClose').onclick=inCloseModal;
+  document.getElementById('inCancel').onclick=inCloseModal;
+  inModal.onclick=e=>{if(e.target===inModal)inCloseModal();};
+
+  inSubmitBtn.onclick=async()=>{
+    inErrorEl.textContent='';
+    const cat=inCatSelected||inCatInput.value.trim();
+    const date=inDateEl.value;
+    const amount=parseFloat(inAmountEl.value);
+    if(!INCOME_CATEGORIES.includes(cat)){inErrorEl.textContent='Elegí una categoría de la lista.';return;}
+    if(cat==='Passive Income'&&!INCOME_PASSIVE_SUBCATS.includes(inSubCatSelected)){inErrorEl.textContent='Elegí una subcategoría (QUEM, Littio o Airbnb).';return;}
+    if(!date){inErrorEl.textContent='Falta la fecha.';return;}
+    if(date<INCOME_CUTOFF){inErrorEl.textContent=`La fecha debe ser ${INCOME_CUTOFF} o posterior.`;return;}
+    if(!(amount>0)){inErrorEl.textContent='El monto debe ser mayor a 0.';return;}
+    if(!(inCurrentFx>0)){inErrorEl.textContent='Falta el tipo de cambio. Reintentá la API o ingresá uno manual.';return;}
+    const ars_per_usd=inCurrentFx;
+    const amount_usd=inCurrency==='USD'?amount:Math.round((amount/ars_per_usd)*100)/100;
+    inSubmitBtn.disabled=true;
+    inSubmitBtn.textContent='Guardando...';
+    try{
+      const payload={date,category:cat,subcategory:cat==='Passive Income'?inSubCatSelected:null,amount,currency:inCurrency,ars_per_usd,amount_usd};
+      const{error}=await sb.from('income_entries').insert(payload);
+      if(error)throw new Error(error.message);
+      inCloseModal();
+      await loadData();
+    }catch(err){
+      inErrorEl.textContent='Error al guardar: '+err.message;
+    }finally{
+      inSubmitBtn.disabled=false;
+      inSubmitBtn.textContent='Guardar ingreso';
+    }
+  };
 })();
+
 </script>
 </body>
 </html>
