@@ -971,6 +971,7 @@ async function loadData(){
     processVariables(varVals,sbExpenses);
     processBalance(balVals);
     processNetWorth(nwVals);
+    ensureBalanceMonths();
     overlaySupabaseVariables();
     overlayFixedExpenses();
     overlayMonthlyBalance();
@@ -1046,6 +1047,32 @@ function processBalance(vals){
   }
   balData={monthCols,rowMap};
 }
+// La planilla de Sheets puede no tener columna para meses post-cutoff recientes
+// (p.ej. el mes actual). Sin columna, los overlays de Supabase no tienen dónde
+// volcar Variables/Fijos/Ingresos y ese mes aparece en cero. Esta función agrega
+// columnas sintéticas para todo mes >= cutoff que tenga datos en Supabase o esté
+// en el set de meses del dashboard, así los overlays y getBalMonthKey lo resuelven.
+function ensureBalanceMonths(){
+  if(!balData.monthCols)balData.monthCols={};
+  const cutoff=new Date(CUTOFF_DATE+'T00:00:00');
+  const mNames=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const existing=new Set(Object.values(balData.monthCols).map(l=>String(l).toLowerCase()));
+  const keys=new Set();
+  (months||[]).forEach(k=>keys.add(k));
+  (fixedRows||[]).forEach(r=>{if(r.month_year)keys.add(String(r.month_year).slice(0,7));});
+  (mbRows||[]).forEach(r=>{if(r.month_year)keys.add(String(r.month_year).slice(0,7));});
+  (incomeRows||[]).forEach(r=>{if(r.date)keys.add(String(r.date).slice(0,7));});
+  for(const k of keys){
+    const[y,m]=k.split('-').map(Number);
+    if(!y||!m)continue;
+    if(new Date(y,m-1,1)<cutoff)continue;
+    const lbl=mNames[m-1]+' '+String(y).slice(-2);
+    if(existing.has(lbl.toLowerCase()))continue;
+    balData.monthCols['sb_'+k]=lbl;
+    existing.add(lbl.toLowerCase());
+  }
+}
+
 function overlaySupabaseVariables(){
   if(!balData.rowMap||!balData.monthCols)return;
   const cutoff=new Date(CUTOFF_DATE+'T00:00:00');
