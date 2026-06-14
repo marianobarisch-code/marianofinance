@@ -151,6 +151,17 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .nw-bd-table td.nw-up{color:var(--green);}
 .nw-bd-table td.nw-down{color:var(--red);}
 .nw-bd-table td.nw-flat{color:var(--amber);}
+.income-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;gap:10px;}
+.income-row:last-child{border-bottom:none;}
+.income-row-main{display:flex;gap:10px;align-items:baseline;min-width:0;}
+.income-date{color:var(--text3);font-size:12px;font-family:'DM Mono',monospace;white-space:nowrap;}
+.income-cat{color:var(--text);font-weight:500;}
+.income-row-right{display:flex;gap:8px;align-items:center;white-space:nowrap;}
+.income-amt{font-family:'DM Mono',monospace;font-size:12px;color:var(--green);font-weight:600;}
+.income-act{background:none;border:none;cursor:pointer;font-size:14px;padding:2px 5px;border-radius:6px;line-height:1;}
+.income-act:hover{background:var(--surface2);}
+.income-empty{color:var(--text3);font-size:13px;padding:8px 0;}
+.income-list-total{font-size:12px;font-weight:600;color:var(--green);font-family:'DM Mono',monospace;}
 
 /* INSIGHTS */
 .insights-list{display:flex;flex-direction:column;gap:8px;}
@@ -427,6 +438,14 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
         <button class="bal-cancel-btn" id="balCancelBtn">Cancelar</button>
         <button class="btn-primary" id="balSaveBtn">Guardar cambios</button>
       </div>
+    </div>
+
+    <div class="card" id="incomeListCard">
+      <div class="bal-header-bar">
+        <div class="card-title">Ingresos cargados del mes</div>
+        <span class="income-list-total" id="incomeListTotal"></span>
+      </div>
+      <div id="incomeList"></div>
     </div>
 
     <div class="charts-grid">
@@ -1552,6 +1571,36 @@ function renderBalance(k){
   const balActionsRow=document.getElementById('balActionsRow');
   if(balEditBtn)balEditBtn.style.display=balEditMode?'none':'inline-block';
   if(balActionsRow)balActionsRow.style.display=balEditMode?'flex':'none';
+  renderIncomeList(k);
+}
+
+// Lista de ingresos cargados (income_entries) del mes seleccionado, con editar/borrar
+function renderIncomeList(k){
+  const card=document.getElementById('incomeListCard');
+  const el=document.getElementById('incomeList');
+  const totEl=document.getElementById('incomeListTotal');
+  if(!card||!el)return;
+  // El módulo de ingresos individuales aplica desde INCOME_CUTOFF (Junio)
+  if(k<INCOME_CUTOFF.slice(0,7)){card.style.display='none';return;}
+  card.style.display='';
+  const rows=(incomeRows||[]).filter(r=>r.date&&String(r.date).slice(0,7)===k)
+    .sort((a,b)=>String(a.date)<String(b.date)?1:-1);
+  if(!rows.length){
+    el.innerHTML='<div class="income-empty">Sin ingresos cargados este mes. Usá "+ Registrar ingreso" para agregar.</div>';
+    totEl.textContent='';
+    return;
+  }
+  const totalUsd=rows.reduce((s,r)=>s+(parseFloat(r.amount_usd)||0),0);
+  el.innerHTML=rows.map(r=>{
+    const d=String(r.date).split('-');
+    const dateLbl=d[2]+'/'+d[1];
+    const catLbl=r.category+(r.category==='Passive Income'&&r.subcategory?' · '+r.subcategory:'');
+    const amtLbl=r.currency==='ARS'
+      ? 'ARS '+fmtARS(r.amount)+' → '+fmtUSD(r.amount_usd)
+      : fmtUSD(r.amount_usd);
+    return`<div class="income-row"><div class="income-row-main"><span class="income-date">${dateLbl}</span><span class="income-cat">${catLbl}</span></div><div class="income-row-right"><span class="income-amt">${amtLbl}</span><button class="income-act" title="Editar" onclick="editIncomeEntry('${r.id}')">✏</button><button class="income-act" title="Borrar" onclick="deleteIncomeEntry('${r.id}')">🗑</button></div></div>`;
+  }).join('');
+  totEl.textContent='Total: '+fmtUSD(totalUsd);
 }
 
 // ── I&S BATCH SAVE (monthly_balance) ─────────────────────────
@@ -3174,6 +3223,7 @@ document.getElementById('fixedSaveBtn').onclick=saveFixedExpenses;
   let inSubCatSelected='';
   let inCurrency='USD';
   let inCurrentFx=null;
+  let inEditingId=null;
 
   async function inLoadFx(){
     inFxDisplay.className='fx-display';
@@ -3249,30 +3299,58 @@ document.getElementById('fixedSaveBtn').onclick=saveFixedExpenses;
   inFxRetry.onclick=inLoadFx;
   inFxInput.oninput=()=>{const v=parseFloat(inFxInput.value);inCurrentFx=(v>0)?v:null;};
 
-  function inOpenModal(){
+  function inOpenModal(row){
     inErrorEl.textContent='';
-    inCatInput.value='';
-    inCatSelected='';
-    inSubCatSelected='';
-    inSubCatInput.value='';
-    inSubCatRow.style.display='none';
-    inAmountEl.value='';
-    inSetCurrency('USD');
-    const today=new Date();
-    inDateEl.value=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
-    inSubmitBtn.textContent='Guardar ingreso';
-    inLoadFx();
+    if(row&&row.id){
+      // Modo edición — preserva el TC original (no se reconvierte)
+      inEditingId=row.id;
+      inCatInput.value=row.category||'';
+      inCatSelected=row.category||'';
+      if(row.category==='Passive Income'){
+        inSubCatRow.style.display='block';
+        inSubCatSelected=row.subcategory||'';
+        inSubCatInput.value=row.subcategory||'';
+        inRenderSubCatList();
+      }else{
+        inSubCatRow.style.display='none';
+        inSubCatSelected='';
+        inSubCatInput.value='';
+      }
+      inAmountEl.value=row.amount;
+      inDateEl.value=String(row.date).slice(0,10);
+      inSetCurrency(row.currency||'USD');
+      inSubmitBtn.textContent='Guardar cambios';
+      document.querySelector('#addIncomeModal .modal-title').textContent='Editar ingreso';
+      inCurrentFx=parseFloat(row.ars_per_usd)||null;
+      inFxManual.style.display='none';
+      inFxDisplay.className='fx-display ok';
+      inFxDisplay.textContent='TC original (no se modifica al editar): '+fmtFx(inCurrentFx||0);
+    }else{
+      inEditingId=null;
+      inCatInput.value='';
+      inCatSelected='';
+      inSubCatSelected='';
+      inSubCatInput.value='';
+      inSubCatRow.style.display='none';
+      inAmountEl.value='';
+      inSetCurrency('USD');
+      const today=new Date();
+      inDateEl.value=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+      inSubmitBtn.textContent='Guardar ingreso';
+      document.querySelector('#addIncomeModal .modal-title').textContent='Registrar ingreso';
+      inLoadFx();
+    }
     inModal.classList.add('active');
-    inCatInput.focus();
     inRenderCatList('');
   }
   function inCloseModal(){
     inModal.classList.remove('active');
     inCatCombo.classList.remove('open');
     inSubCatCombo.classList.remove('open');
+    inEditingId=null;
   }
 
-  document.getElementById('addIncomeBtn').onclick=inOpenModal;
+  document.getElementById('addIncomeBtn').onclick=()=>inOpenModal();
   document.getElementById('addIncomeClose').onclick=inCloseModal;
   document.getElementById('inCancel').onclick=inCloseModal;
   inModal.onclick=e=>{if(e.target===inModal)inCloseModal();};
@@ -3290,20 +3368,38 @@ document.getElementById('fixedSaveBtn').onclick=saveFixedExpenses;
     if(!(inCurrentFx>0)){inErrorEl.textContent='Falta el tipo de cambio. Reintentá la API o ingresá uno manual.';return;}
     const ars_per_usd=inCurrentFx;
     const amount_usd=inCurrency==='USD'?amount:Math.round((amount/ars_per_usd)*100)/100;
+    const isEdit=!!inEditingId;
     inSubmitBtn.disabled=true;
-    inSubmitBtn.textContent='Guardando...';
+    inSubmitBtn.textContent=isEdit?'Guardando cambios...':'Guardando...';
     try{
       const payload={date,category:cat,subcategory:cat==='Passive Income'?inSubCatSelected:null,amount,currency:inCurrency,ars_per_usd,amount_usd};
-      const{error}=await sb.from('income_entries').insert(payload);
-      if(error)throw new Error(error.message);
+      if(isEdit){
+        const{error}=await sb.from('income_entries').update(payload).eq('id',inEditingId);
+        if(error)throw new Error(error.message);
+      }else{
+        const{error}=await sb.from('income_entries').insert(payload);
+        if(error)throw new Error(error.message);
+      }
       inCloseModal();
       await loadData();
     }catch(err){
       inErrorEl.textContent='Error al guardar: '+err.message;
     }finally{
       inSubmitBtn.disabled=false;
-      inSubmitBtn.textContent='Guardar ingreso';
+      inSubmitBtn.textContent=isEdit?'Guardar cambios':'Guardar ingreso';
     }
+  };
+
+  // Exponer editar/borrar para los botones de la lista de ingresos
+  window.editIncomeEntry=function(id){
+    const row=(incomeRows||[]).find(r=>String(r.id)===String(id));
+    if(row)inOpenModal(row);
+  };
+  window.deleteIncomeEntry=async function(id){
+    if(!confirm('¿Borrar este ingreso? No se puede deshacer.'))return;
+    const{error}=await sb.from('income_entries').delete().eq('id',id);
+    if(error){alert('Error al borrar: '+error.message);return;}
+    await loadData();
   };
 })();
 
