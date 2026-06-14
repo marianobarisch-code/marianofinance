@@ -139,6 +139,18 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .nw-row .nw-val{font-family:'DM Mono',monospace;font-size:12px;font-weight:500;}
 .nw-row.total-row{font-weight:600;color:var(--text);border-top:1px solid var(--border);margin-top:4px;padding-top:8px;}
 .nw-row.total-row .nw-val{font-size:13px;}
+.nw-bd-table{width:100%;border-collapse:collapse;}
+.nw-bd-table th{font-size:11px;color:var(--text3);font-weight:500;text-align:right;padding:7px 10px;border-bottom:1px solid var(--border);white-space:nowrap;}
+.nw-bd-table th:first-child{text-align:left;}
+.nw-bd-table td{padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace;font-size:12px;white-space:nowrap;}
+.nw-bd-table td:first-child{text-align:left;font-family:'DM Sans',sans-serif;color:var(--text2);}
+.nw-bd-section td{background:var(--surface2);font-weight:600;text-transform:uppercase;letter-spacing:.05em;font-size:11px;color:var(--text3);font-family:'DM Sans',sans-serif;}
+.nw-bd-total td{font-weight:600;color:var(--text);}
+.nw-bd-total td:first-child{color:var(--text);}
+.nw-bd-grand td{border-top:2px solid var(--border);font-size:13px;}
+.nw-bd-table td.nw-up{color:var(--green);}
+.nw-bd-table td.nw-down{color:var(--red);}
+.nw-bd-table td.nw-flat{color:var(--amber);}
 
 /* INSIGHTS */
 .insights-list{display:flex;flex-direction:column;gap:8px;}
@@ -536,6 +548,13 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 
   <!-- TAB: NET WORTH -->
   <div class="tab-panel" id="tab-networth">
+    <div class="nw-range-btns" id="nwRangeBtns">
+      <button class="nw-range-btn" data-range="current">Mes actual</button>
+      <button class="nw-range-btn" data-range="last3">Últimos 3</button>
+      <button class="nw-range-btn" data-range="last6">Últimos 6</button>
+      <button class="nw-range-btn active" data-range="last12">Últimos 12</button>
+      <button class="nw-range-btn" data-range="ytd">YTD</button>
+    </div>
     <div class="metrics-grid-3">
       <div class="metric-card">
         <div class="metric-label">Patrimonio neto</div>
@@ -543,12 +562,12 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
         <div class="metric-sub" id="nwTotalSub">—</div>
       </div>
       <div class="metric-card">
-        <div class="metric-label">Cambio % vs mes anterior</div>
+        <div class="metric-label" id="nwChangePctLabel">Cambio %</div>
         <div class="metric-value" id="nwChangePct">—</div>
         <div class="metric-sub" id="nwChangePctSub">—</div>
       </div>
       <div class="metric-card">
-        <div class="metric-label">Cambio $ vs mes anterior</div>
+        <div class="metric-label" id="nwChangeAbsLabel">Cambio $</div>
         <div class="metric-value" id="nwChangeAbs">—</div>
         <div class="metric-sub" id="nwChangeAbsSub">—</div>
       </div>
@@ -556,13 +575,6 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 
     <div class="card">
       <div class="card-title">Evolución del patrimonio (USD)</div>
-      <div class="nw-range-btns" id="nwRangeBtns">
-        <button class="nw-range-btn" data-range="current">Mes actual</button>
-        <button class="nw-range-btn" data-range="last3">Últimos 3</button>
-        <button class="nw-range-btn" data-range="last6">Últimos 6</button>
-        <button class="nw-range-btn active" data-range="last12">Últimos 12</button>
-        <button class="nw-range-btn" data-range="ytd">YTD</button>
-      </div>
       <div style="position:relative;width:100%;height:240px;"><canvas id="nwChart"></canvas></div>
     </div>
 
@@ -600,7 +612,10 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
       </div>
     </div>
 
-    <div class="nw-breakdown" id="nwBreakdown"></div>
+    <div class="card" id="nwBreakdownCard">
+      <div class="card-title">Desglose por ítem (USD)</div>
+      <div id="nwBreakdown"></div>
+    </div>
   </div>
 
   <!-- TAB: INSIGHTS -->
@@ -2143,42 +2158,7 @@ function renderNetWorth(k){
   const prev=curIdx>0?getNWMonthKey(months[curIdx-1]):null;
   const get=(lbl,col)=>{if(!col||!rm[lbl])return 0;return rm[lbl][col]||0;};
 
-  const total=get('Total Patrimonio',mk2);
-  const prevTotal=get('Total Patrimonio',prev);
-  const changeAbs=total-prevTotal;
-  const changePct=prevTotal?Math.round(changeAbs/Math.abs(prevTotal)*100):0;
-  const prevLabel=prev?mnShort(months[curIdx-1]):'sin mes anterior';
-
-  // Card 1 — Total Patrimonio
-  const nwTotEl=document.getElementById('nwTotal');
-  nwTotEl.textContent=fmtUSD(total);
-  nwTotEl.className='metric-value '+(total>=0?'pos':'neg');
-  document.getElementById('nwTotalSub').textContent='';
-
-  // Card 2 — Cambio %
-  const nwPctEl=document.getElementById('nwChangePct');
-  if(prev&&prevTotal){
-    nwPctEl.textContent=(changePct>=0?'+':'')+changePct+'%';
-    nwPctEl.className='metric-value '+(changeAbs>=0?'pos':'neg');
-  }else{
-    nwPctEl.textContent='—';
-    nwPctEl.className='metric-value';
-  }
-  document.getElementById('nwChangePctSub').textContent='vs '+prevLabel;
-
-  // Card 3 — Cambio $
-  const nwAbsEl=document.getElementById('nwChangeAbs');
-  if(prev&&prevTotal){
-    const sign=changeAbs>=0?'+':'-';
-    nwAbsEl.textContent=sign+'$'+Math.round(Math.abs(changeAbs)).toLocaleString('en-US');
-    nwAbsEl.className='metric-value '+(changeAbs>=0?'pos':'neg');
-  }else{
-    nwAbsEl.textContent='—';
-    nwAbsEl.className='metric-value';
-  }
-  document.getElementById('nwChangeAbsSub').textContent='vs '+prevLabel;
-
-  // Stacked bar: assets above zero (4 categorías), Pasivos abajo del cero
+  // ── Rango (controla tarjetas + gráfico) ──────────────────────
   let chartMs;
   if(nwChartRange==='current'){
     chartMs=[months[curIdx]];
@@ -2192,68 +2172,103 @@ function renderNetWorth(k){
   }else{
     chartMs=months.slice(Math.max(0,curIdx-11),curIdx+1);
   }
+  if(!chartMs.length)chartMs=[months[curIdx]];
   const chartKeys=chartMs.map(getNWMonthKey);
   const lbls=chartMs.map(mnShort);
 
-  const stackGroups=[
-    {label:'Activos líquidos',rows:['Wise','Citi','Galicia','Littio Card','Cash - USD'],totalKey:'Liquido',color:'#7BD5F5'},
-    {label:'Inversiones',rows:['Binance','eToro','StoneX'],totalKey:'Crypto, acciones y bonos',color:'#5E72EB'},
-    {label:'Inmuebles',rows:['Inmueble - Depto Libertador'],totalKey:'Inmueble - Depto Libertador',color:'#1F2F98'},
-    {label:'Participaciones y préstamos',rows:['Littio (Equity)','GreenLat','Littio (Pots)','Préstamo QUEM (Walter y Mati)'],totalKey:'Participación/Préstamos',color:'#FDC094'}
-  ];
+  const total=get('Total Patrimonio',mk2);
+  // Baseline del cambio: primer mes visible del rango; para "Mes actual", el mes anterior
+  let baseMonthStr;
+  if(chartMs.length>1)baseMonthStr=chartMs[0];
+  else baseMonthStr=curIdx>0?months[curIdx-1]:null;
+  const baseCol=baseMonthStr?getNWMonthKey(baseMonthStr):null;
+  const baseTotal=get('Total Patrimonio',baseCol);
+  const changeAbs=total-baseTotal;
+  const changePct=baseTotal?Math.round(changeAbs/Math.abs(baseTotal)*100):0;
+  const baseLabel=baseMonthStr?mnShort(baseMonthStr):'sin referencia';
+  const rangeLabel=nwChartRange==='current'?'vs mes anterior':nwChartRange==='last3'?'últimos 3 meses':nwChartRange==='last6'?'últimos 6 meses':nwChartRange==='ytd'?'YTD':'últimos 12 meses';
 
-  const datasets=stackGroups.map(g=>({
-    label:g.label,
-    data:chartKeys.map(ck=>{
-      if(!ck)return 0;
-      const t=get(g.totalKey,ck);
-      if(t)return t;
-      return g.rows.reduce((s,r)=>s+get(r,ck),0);
-    }),
-    backgroundColor:g.color,
-    stack:'nw',
-    borderWidth:0
-  }));
+  // Card 1 — Patrimonio neto (fijo, mes actual)
+  const nwTotEl=document.getElementById('nwTotal');
+  nwTotEl.textContent=fmtUSD(total);
+  nwTotEl.className='metric-value '+(total>=0?'pos':'neg');
+  document.getElementById('nwTotalSub').textContent=mk2?mnShort(months[curIdx]):'';
 
-  datasets.push({
-    label:'Pasivos',
-    data:chartKeys.map(ck=>ck?-Math.abs(get('Pasivos',ck)):0),
-    backgroundColor:C_NEG,
-    stack:'nw',
-    borderWidth:0
-  });
+  // Card 2 — Cambio % (del período)
+  document.getElementById('nwChangePctLabel').textContent='Cambio % ('+rangeLabel+')';
+  const nwPctEl=document.getElementById('nwChangePct');
+  if(baseCol&&baseTotal){
+    nwPctEl.textContent=(changePct>=0?'+':'')+changePct+'%';
+    nwPctEl.className='metric-value '+(changeAbs>=0?'pos':'neg');
+  }else{nwPctEl.textContent='—';nwPctEl.className='metric-value';}
+  document.getElementById('nwChangePctSub').textContent='vs '+baseLabel;
 
+  // Card 3 — Cambio $ (del período)
+  document.getElementById('nwChangeAbsLabel').textContent='Cambio $ ('+rangeLabel+')';
+  const nwAbsEl=document.getElementById('nwChangeAbs');
+  if(baseCol&&baseTotal){
+    const sign=changeAbs>=0?'+':'-';
+    nwAbsEl.textContent=sign+'$'+Math.round(Math.abs(changeAbs)).toLocaleString('en-US');
+    nwAbsEl.className='metric-value '+(changeAbs>=0?'pos':'neg');
+  }else{nwAbsEl.textContent='—';nwAbsEl.className='metric-value';}
+  document.getElementById('nwChangeAbsSub').textContent='vs '+baseLabel;
+
+  // ── Gráfico: línea de patrimonio total, eje auto-ajustado ─────
+  const totalsLine=chartKeys.map(ck=>ck?get('Total Patrimonio',ck):null);
   destroyChart('nw');
   charts.nw=new Chart(document.getElementById('nwChart'),{
-    type:'bar',
-    data:{labels:lbls,datasets},
+    type:'line',
+    data:{labels:lbls,datasets:[{
+      label:'Patrimonio neto',data:totalsLine,
+      borderColor:'#5E72EB',backgroundColor:'rgba(94,114,235,.12)',
+      fill:true,tension:.25,borderWidth:2,
+      pointRadius:3,pointHoverRadius:5,pointBackgroundColor:'#5E72EB',spanGaps:true
+    }]},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{
-        legend:{position:'bottom',labels:{font:{size:11},boxWidth:10,padding:10}},
-        tooltip:{callbacks:{label:ctx=>' '+ctx.dataset.label+': '+fmtUSD(Math.abs(ctx.raw))}}
-      },
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+fmtUSD(ctx.raw)}}},
       scales:{
-        x:{stacked:true,ticks:{font:{size:10},maxRotation:0},grid:{display:false},border:{display:false}},
-        y:{stacked:true,ticks:{font:{size:10},callback:v=>fmtShortUSD(v)},grid:{color:'rgba(0,0,0,.05)'},border:{display:false}}
+        x:{ticks:{font:{size:10},maxRotation:0},grid:{display:false},border:{display:false}},
+        y:{grace:'8%',ticks:{font:{size:10},maxTicksLimit:6,callback:v=>fmtShortUSD(v)},grid:{color:'rgba(0,0,0,.05)'},border:{display:false}}
       }
     }
   });
 
-  // Breakdown
-  const groups=[
+  // ── Desglose: lista agrupada, mes actual + 2 anteriores ───────
+  const bdIdx=[curIdx-2,curIdx-1,curIdx].filter(i=>i>=0);
+  const bdMonths=bdIdx.map(i=>months[i]);
+  const bdCols=bdMonths.map(getNWMonthKey);
+  const bdLbls=bdMonths.map(mnShort);
+  const bdGroups=[
     {title:'Activos líquidos',rows:['Wise','Citi','Galicia','Littio Card','Cash - USD'],totalKey:'Liquido'},
     {title:'Inversiones',rows:['Binance','eToro','StoneX'],totalKey:'Crypto, acciones y bonos'},
     {title:'Inmuebles',rows:['Inmueble - Depto Libertador'],totalKey:'Inmueble - Depto Libertador'},
     {title:'Participaciones y préstamos',rows:['Littio (Equity)','GreenLat','Littio (Pots)','Préstamo QUEM (Walter y Mati)'],totalKey:'Participación/Préstamos'},
+    {title:'Pasivos',rows:['Provisión GreenLat','Provisión Alquiler'],totalKey:'Pasivos'}
   ];
-  document.getElementById('nwBreakdown').innerHTML=groups.map(g=>{
-    const rowsHtml=g.rows.map(lbl=>{
-      const v=get(lbl,mk2);if(!v)return'';
-      return`<div class="nw-row"><span class="nw-name">${lbl}</span><span class="nw-val">${fmtUSD(v)}</span></div>`;
-    }).join('');
-    const tot=get(g.totalKey,mk2)||g.rows.reduce((s,l)=>s+get(l,mk2),0);
-    return`<div class="nw-group"><div class="nw-group-title">${g.title}</div>${rowsHtml}<div class="nw-row total-row"><span class="nw-name">Total</span><span class="nw-val">${fmtUSD(tot)}</span></div></div>`;
+  const moveCls=(cur,prev)=>{
+    if(prev===null||prev===undefined||!prev)return'';
+    const p=(cur-prev)/Math.abs(prev)*100;
+    return p>1?'nw-up':p<-1?'nw-down':'nw-flat';
+  };
+  const cellsFor=vals=>vals.map((v,i)=>{
+    const cls=i>0?moveCls(v,vals[i-1]):'';
+    return`<td class="${cls}">${v?fmtUSD(v):'—'}</td>`;
   }).join('');
+  let bd=`<table class="nw-bd-table"><thead><tr><th>Ítem</th>${bdLbls.map(l=>`<th>${l}</th>`).join('')}</tr></thead><tbody>`;
+  bdGroups.forEach(g=>{
+    bd+=`<tr class="nw-bd-section"><td>${g.title}</td>${bdLbls.map(()=>'<td></td>').join('')}</tr>`;
+    g.rows.forEach(lbl=>{
+      const vals=bdCols.map(c=>get(lbl,c));
+      if(vals.every(v=>!v))return;
+      bd+=`<tr><td>${lbl}</td>${cellsFor(vals)}</tr>`;
+    });
+    const totVals=bdCols.map(c=>get(g.totalKey,c)||g.rows.reduce((s,l)=>s+get(l,c),0));
+    bd+=`<tr class="nw-bd-total"><td>Total ${g.title}</td>${cellsFor(totVals)}</tr>`;
+  });
+  const grandVals=bdCols.map(c=>get('Total Patrimonio',c));
+  bd+=`<tr class="nw-bd-total nw-bd-grand"><td>Total Patrimonio</td>${cellsFor(grandVals)}</tr>`;
+  bd+='</tbody></table>';
+  document.getElementById('nwBreakdown').innerHTML=bd;
 }
 
 // ── NW EDITOR ─────────────────────────────────────────────────
