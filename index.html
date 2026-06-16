@@ -133,6 +133,17 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .budget-edit-save,.budget-edit-cancel{border:none;cursor:pointer;border-radius:6px;padding:6px 9px;font-size:13px;line-height:1;flex-shrink:0;}
 .budget-edit-save{background:var(--green);color:#fff;}
 .budget-edit-cancel{background:var(--surface2);color:var(--text2);}
+#budgetSummaryCard{margin-bottom:1.25rem;}
+.bsum-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:11px;}
+.bsum-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;font-weight:500;margin-bottom:3px;}
+.bsum-amounts{font-size:15px;font-weight:600;color:var(--text);font-family:'DM Mono',monospace;}
+.bsum-pct{font-size:26px;font-weight:700;font-family:'DM Mono',monospace;line-height:1;flex-shrink:0;}
+.bsum-track{position:relative;height:20px;background:var(--surface2);border-radius:6px;margin:4px 0;}
+.bsum-fill{position:absolute;left:0;top:0;height:100%;border-radius:6px;transition:width .4s ease;}
+.bsum-pace{position:absolute;top:-3px;bottom:-3px;width:3px;background:var(--text2);border-radius:2px;}
+.bsum-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:9px;font-size:12px;}
+.bsum-foot #bsumVerdict{font-weight:600;}
+.bsum-pace-lbl{color:var(--text3);font-family:'DM Mono',monospace;text-align:right;}
 .edit-toggle{font-size:12px;color:var(--primary);background:none;border:none;cursor:pointer;padding:0;margin-bottom:10px;font-family:'DM Sans',sans-serif;}
 .edit-toggle:hover{text-decoration:underline;}
 .budget-editor{display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;margin-bottom:1rem;}
@@ -507,6 +518,18 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
     <button class="add-expense-btn" id="addExpenseBtn">
       <span style="font-size:18px;line-height:1;">+</span><span>Add expense</span>
     </button>
+    <!-- Resumen del presupuesto variable vs meta del mes -->
+    <div class="card" id="budgetSummaryCard">
+      <div class="bsum-top">
+        <div>
+          <div class="bsum-label">Vas con respecto a la meta del mes</div>
+          <div class="bsum-amounts"><span id="bsumSpent">—</span> de <span id="bsumBudget">—</span></div>
+        </div>
+        <div class="bsum-pct" id="bsumPct">—</div>
+      </div>
+      <div class="bsum-track"><div class="bsum-fill" id="bsumFill"></div><div class="bsum-pace" id="bsumPace"></div></div>
+      <div class="bsum-foot"><span id="bsumVerdict">—</span><span id="bsumPaceLbl" class="bsum-pace-lbl">—</span></div>
+    </div>
     <!-- Budget grid + editor (protagonista, arriba) -->
     <div class="section-title">Presupuesto por categoría <span style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none">— clic para detalle</span></div>
     <button class="edit-toggle" id="toggleBudgets">Editar presupuestos</button>
@@ -1751,6 +1774,50 @@ function renderBudget(k){
     </div>`;
   }).join('');
   if(budgetEditCat){const _i=document.getElementById('budgetEditInput');if(_i){_i.focus();_i.select();}}
+
+  // ── Resumen: gasto variable total vs presupuesto total + ritmo del mes ──
+  const sumCard=document.getElementById('budgetSummaryCard');
+  if(sumCard){
+    const allCats=new Set([...sorted.map(([c])=>c),...Object.keys(budgets)]);
+    let spentTot=0,budTot=0;
+    sorted.forEach(([,v])=>spentTot+=v);
+    allCats.forEach(c=>{budTot+=budgets[c]||0;});
+    const spentPct=budTot>0?spentTot/budTot*100:0;
+    const[yy,mm]=k.split('-').map(Number);
+    const today=new Date();
+    const curYM=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');
+    const dim=new Date(yy,mm,0).getDate();
+    document.getElementById('bsumSpent').textContent=fmtARS(spentTot);
+    document.getElementById('bsumBudget').textContent=fmtARS(budTot);
+    const pctEl=document.getElementById('bsumPct');
+    pctEl.textContent=Math.round(spentPct)+'%';
+    const fill=document.getElementById('bsumFill');
+    fill.style.width=Math.min(100,spentPct)+'%';
+    const paceEl=document.getElementById('bsumPace');
+    const verdictEl=document.getElementById('bsumVerdict');
+    const paceLbl=document.getElementById('bsumPaceLbl');
+    let col,verdict;
+    if(k===curYM){
+      const pacePct=today.getDate()/dim*100;
+      const dev=spentPct-pacePct;
+      if(dev>=10){col=C_NEG;verdict='🔴 Pasado de ritmo';}
+      else if(dev>=5){col=C_WARN;verdict='🟠 Adelantado';}
+      else if(dev<=-5){col=C_WARN;verdict='🟠 Por debajo del ritmo (ahorrando)';}
+      else{col=C_POS;verdict='🟢 En ritmo';}
+      paceEl.style.display='block';
+      paceEl.style.left=Math.min(100,pacePct)+'%';
+      paceLbl.textContent='Ritmo esperado '+Math.round(pacePct)+'% · día '+today.getDate()+'/'+dim;
+    }else{
+      col=spentPct>100?C_NEG:C_POS;
+      verdict=spentPct>100?'🔴 Excedido':'🟢 Dentro del presupuesto';
+      paceEl.style.display='none';
+      paceLbl.textContent=k<curYM?'Mes cerrado':'';
+    }
+    const margin=budTot-spentTot;
+    verdict+=' · '+(margin>=0?'queda '+fmtARS(margin):'excedido '+fmtARS(-margin));
+    fill.style.background=col;pctEl.style.color=col;
+    verdictEl.textContent=verdict;verdictEl.style.color=col;
+  }
 
   renderEditor(sorted.map(([c])=>c));
   renderMonthExpensesList(k);
