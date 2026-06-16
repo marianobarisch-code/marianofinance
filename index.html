@@ -112,14 +112,17 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 
 /* BUDGET */
 .budgets-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:1.5rem;}
-.budget-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;cursor:pointer;transition:all .15s;}
-.budget-item:hover{border-color:rgba(0,0,0,.2);transform:translateY(-1px);box-shadow:0 2px 8px rgba(0,0,0,.06);}
-.budget-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;}
-.budget-cat{font-size:12px;font-weight:500;}
-.budget-pct{font-size:11px;font-family:'DM Mono',monospace;}
-.progress-bg{height:3px;background:var(--surface2);border-radius:2px;overflow:hidden;margin-bottom:5px;}
-.progress-fill{height:100%;border-radius:2px;transition:width .4s ease;}
-.budget-amounts{display:flex;justify-content:space-between;font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;}
+.budget-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:13px 15px;cursor:pointer;transition:all .15s;}
+.budget-item:hover{border-color:rgba(0,0,0,.2);transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.08);}
+.budget-item.over{border-color:var(--red);background:var(--red-bg);}
+.budget-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;gap:8px;}
+.budget-cat{font-size:13px;font-weight:600;color:var(--text);display:flex;align-items:center;min-width:0;}
+.budget-cat-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.budget-icon{margin-right:7px;font-size:17px;line-height:1;flex-shrink:0;}
+.budget-pct{font-size:13px;font-weight:700;font-family:'DM Mono',monospace;flex-shrink:0;}
+.budget-blocks{display:flex;gap:3px;margin-bottom:8px;}
+.budget-blocks .blk{flex:1;height:14px;border-radius:3px;background:var(--surface2);transition:background .3s ease;}
+.budget-amounts{display:flex;justify-content:space-between;font-size:11px;color:var(--text2);font-family:'DM Mono',monospace;}
 .edit-toggle{font-size:12px;color:var(--primary);background:none;border:none;cursor:pointer;padding:0;margin-bottom:10px;font-family:'DM Sans',sans-serif;}
 .edit-toggle:hover{text-decoration:underline;}
 .budget-editor{display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;margin-bottom:1rem;}
@@ -494,6 +497,17 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
     <button class="add-expense-btn" id="addExpenseBtn">
       <span style="font-size:18px;line-height:1;">+</span><span>Add expense</span>
     </button>
+    <!-- Budget grid + editor (protagonista, arriba) -->
+    <div class="section-title">Presupuesto por categoría <span style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none">— clic para detalle</span></div>
+    <button class="edit-toggle" id="toggleBudgets">Editar presupuestos</button>
+    <div class="budget-editor" id="budgetEditor">
+      <div class="editor-grid" id="editorGrid"></div>
+      <div id="budgetEditorActions" style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:14px;">
+        <span id="budgetSaveStatus" style="font-size:12px;font-weight:500;"></span>
+        <button class="btn-primary" id="budgetSaveBtn" type="button">Guardar mes</button>
+      </div>
+    </div>
+    <div class="budgets-grid" id="budgetsGrid"></div>
     <!-- 3. Expense list (collapsible) -->
     <div class="card month-exp-card">
       <div class="card-title-row">
@@ -530,17 +544,6 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
       </div>
     </div>
     </div>
-    <!-- 5. Budget grid + editor -->
-    <div class="section-title">Presupuesto por categoría <span style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none">— clic para detalle</span></div>
-    <button class="edit-toggle" id="toggleBudgets">Editar presupuestos</button>
-    <div class="budget-editor" id="budgetEditor">
-      <div class="editor-grid" id="editorGrid"></div>
-      <div id="budgetEditorActions" style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:14px;">
-        <span id="budgetSaveStatus" style="font-size:12px;font-weight:500;"></span>
-        <button class="btn-primary" id="budgetSaveBtn" type="button">Guardar mes</button>
-      </div>
-    </div>
-    <div class="budgets-grid" id="budgetsGrid"></div>
     </div><!-- end bsub-home -->
     <div class="budget-subpanel" id="bsub-fijos">
       <div class="card">
@@ -878,6 +881,8 @@ const SUPABASE_URL='https://afbhhtrbodflxvrjfwyf.supabase.co';
 const SUPABASE_ANON_KEY='sb_publishable_-kOChgUMkLSQmpJQ8WJ1VA_IR5RfylD';
 const CUTOFF_DATE='2026-05-01'; // desde esta fecha (inclusive) los gastos viven en Supabase
 const CATEGORIES=['Planes Amigos','Uber/Taxis','Planes Maria','Salud','Comidas','Café','Delivery','Estética','Actividad Física','Auto','Supermercados','Hogar','Planes Familia','Otros','Ropa','Suplementos','Eventos','Mascotas','Extraordinary'];
+const CAT_ICONS={'Supermercados':'🛒','Suplementos':'💊','Planes Familia':'👨‍👩‍👧','Planes Maria':'💑','Comidas':'🍽️','Auto':'🚗','Café':'☕','Planes Amigos':'🍻','Actividad Física':'🏋️','Estética':'💅','Salud':'🩺','Delivery':'🛵','Uber/Taxis':'🚕','Hogar':'🏠','Eventos':'🎉','Mascotas':'🐾','Ropa':'👕','Otros':'🎲','Extraordinary':'✨'};
+const catIcon=c=>CAT_ICONS[c]||'🎲';
 // ===== Income module config =====
 const INCOME_CUTOFF='2026-06-01'; // desde Junio los ingresos se cargan uno por uno en income_entries
 const INCOME_CATEGORIES=['Sueldo','Comisiones Storyly','Passive Income','Referidos'];
@@ -1714,14 +1719,16 @@ function renderBudget(k){
   document.getElementById('budgetsGrid').innerHTML=sorted.map(([cat,spent])=>{
     const bud=budgets[cat]||0;
     const rawPct=bud>0?spent/bud*100:0;
-    const fillPct=bud>0?Math.min(Math.round(rawPct),100):0;
     const over=bud>0&&rawPct>100;
     const tight=bud>0&&rawPct>=70&&rawPct<=100;
     const col=bud>0?(over?C_NEG:tight?C_WARN:C_POS):'#a0a0a0';
-    return `<div class="budget-item" onclick="openDetail('${cat.replace(/'/g,"\\'")}')">
-      <div class="budget-header"><span class="budget-cat">${cat}</span><span class="budget-pct" style="color:${col}">${bud>0?Math.round(rawPct)+'%':'—'}</span></div>
-      <div class="progress-bg"><div class="progress-fill" style="width:${fillPct}%;background:${col}"></div></div>
-      <div class="budget-amounts"><span>${fmtARS(spent)}</span>${bud>0?`<span>límite ${fmtARS(bud)}</span>`:''}</div>
+    // 10 cuadrados, cada uno = 10% del presupuesto
+    const filled=bud>0?Math.min(10,Math.round(rawPct/10)):0;
+    const blocks=Array.from({length:10},(_,i)=>`<span class="blk" style="${i<filled?'background:'+col:''}"></span>`).join('');
+    return `<div class="budget-item${over?' over':''}" onclick="openDetail('${cat.replace(/'/g,"\\'")}')">
+      <div class="budget-header"><span class="budget-cat"><span class="budget-icon">${catIcon(cat)}</span><span class="budget-cat-name">${cat}</span></span><span class="budget-pct" style="color:${col}">${bud>0?Math.round(rawPct)+'%':'—'}</span></div>
+      <div class="budget-blocks">${blocks}</div>
+      <div class="budget-amounts"><span>${fmtARS(spent)}</span>${bud>0?`<span>de ${fmtARS(bud)}</span>`:''}</div>
     </div>`;
   }).join('');
 
