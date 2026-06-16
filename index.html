@@ -123,6 +123,16 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .budget-blocks{display:flex;gap:3px;margin-bottom:8px;}
 .budget-blocks .blk{flex:1;height:14px;border-radius:3px;background:var(--surface2);transition:background .3s ease;}
 .budget-amounts{display:flex;justify-content:space-between;font-size:11px;color:var(--text2);font-family:'DM Mono',monospace;}
+.budget-head-right{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.budget-edit-btn{background:none;border:none;cursor:pointer;font-size:12px;opacity:.45;padding:0 2px;line-height:1;transition:opacity .15s;}
+.budget-item:hover .budget-edit-btn{opacity:.8;}
+.budget-edit-btn:hover{opacity:1;}
+.budget-item.editing{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-bg);}
+.budget-edit-row{display:flex;gap:6px;align-items:center;margin:8px 0;}
+.budget-edit-row input{flex:1;min-width:0;padding:6px 8px;border:1px solid var(--primary);border-radius:6px;font-family:'DM Mono',monospace;font-size:13px;background:var(--surface);color:var(--text);}
+.budget-edit-save,.budget-edit-cancel{border:none;cursor:pointer;border-radius:6px;padding:6px 9px;font-size:13px;line-height:1;flex-shrink:0;}
+.budget-edit-save{background:var(--green);color:#fff;}
+.budget-edit-cancel{background:var(--surface2);color:var(--text2);}
 .edit-toggle{font-size:12px;color:var(--primary);background:none;border:none;cursor:pointer;padding:0;margin-bottom:10px;font-family:'DM Sans',sans-serif;}
 .edit-toggle:hover{text-decoration:underline;}
 .budget-editor{display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;margin-bottom:1rem;}
@@ -1718,6 +1728,15 @@ function renderBudget(k){
   // Budgets grid
   document.getElementById('budgetsGrid').innerHTML=sorted.map(([cat,spent])=>{
     const bud=budgets[cat]||0;
+    const escCat=cat.replace(/'/g,"\\'");
+    // Modo edición inline de esta carta
+    if(budgetEditCat===cat){
+      return `<div class="budget-item editing" onclick="event.stopPropagation()">
+        <div class="budget-header"><span class="budget-cat"><span class="budget-icon">${catIcon(cat)}</span><span class="budget-cat-name">${cat}</span></span></div>
+        <div class="budget-edit-row"><input type="number" id="budgetEditInput" value="${bud}" min="0" step="1000" placeholder="0" onclick="event.stopPropagation()" onkeydown="if(event.key==='Enter')saveSingleBudget('${escCat}');if(event.key==='Escape')cancelBudgetEdit();"><button class="budget-edit-save" title="Guardar límite" onclick="saveSingleBudget('${escCat}')">✓</button><button class="budget-edit-cancel" title="Cancelar" onclick="cancelBudgetEdit()">✕</button></div>
+        <div class="budget-amounts"><span>gastado ${fmtARS(spent)}</span></div>
+      </div>`;
+    }
     const rawPct=bud>0?spent/bud*100:0;
     const over=bud>0&&rawPct>100;
     const tight=bud>0&&rawPct>=70&&rawPct<=100;
@@ -1725,12 +1744,13 @@ function renderBudget(k){
     // 10 cuadrados, cada uno = 10% del presupuesto
     const filled=bud>0?Math.min(10,Math.round(rawPct/10)):0;
     const blocks=Array.from({length:10},(_,i)=>`<span class="blk" style="${i<filled?'background:'+col:''}"></span>`).join('');
-    return `<div class="budget-item${over?' over':''}" onclick="openDetail('${cat.replace(/'/g,"\\'")}')">
-      <div class="budget-header"><span class="budget-cat"><span class="budget-icon">${catIcon(cat)}</span><span class="budget-cat-name">${cat}</span></span><span class="budget-pct" style="color:${col}">${bud>0?Math.round(rawPct)+'%':'—'}</span></div>
+    return `<div class="budget-item${over?' over':''}" onclick="openDetail('${escCat}')">
+      <div class="budget-header"><span class="budget-cat"><span class="budget-icon">${catIcon(cat)}</span><span class="budget-cat-name">${cat}</span></span><span class="budget-head-right"><span class="budget-pct" style="color:${col}">${bud>0?Math.round(rawPct)+'%':'—'}</span><button class="budget-edit-btn" title="Editar límite" onclick="event.stopPropagation();startBudgetEdit('${escCat}')">✏</button></span></div>
       <div class="budget-blocks">${blocks}</div>
       <div class="budget-amounts"><span>${fmtARS(spent)}</span>${bud>0?`<span>de ${fmtARS(bud)}</span>`:''}</div>
     </div>`;
   }).join('');
+  if(budgetEditCat){const _i=document.getElementById('budgetEditInput');if(_i){_i.focus();_i.select();}}
 
   renderEditor(sorted.map(([c])=>c));
   renderMonthExpensesList(k);
@@ -1794,6 +1814,25 @@ async function saveCategoryBudgets(){
   }
 }
 
+// ── INLINE per-card budget edit ───────────────────────────────
+let budgetEditCat=null;
+function startBudgetEdit(cat){budgetEditCat=cat;renderBudget(months[curIdx]);}
+function cancelBudgetEdit(){budgetEditCat=null;renderBudget(months[curIdx]);}
+async function saveSingleBudget(cat){
+  const inp=document.getElementById('budgetEditInput');
+  const val=Math.round(parseFloat(inp&&inp.value)||0);
+  budgetEditCat=null;
+  const k=months[curIdx];if(!k)return;
+  budgets[cat]=val; // feedback inmediato
+  renderBudget(k);
+  try{
+    const{error}=await sb.from('category_budgets').upsert([{month_year:k+'-01',category:cat,amount_ars:val}],{onConflict:'month_year,category'});
+    if(error)throw new Error(error.message);
+    budgetRows=await fetchCategoryBudgets();
+    recomputeBudgetsFor(k);
+    render();
+  }catch(err){alert('Error al guardar el límite: '+err.message);}
+}
 
 // ── INCOME & SPENDING edit-mode flag (gates the editable bal-cell inputs) ──
 let balEditMode=false;
