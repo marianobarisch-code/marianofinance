@@ -83,6 +83,9 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .inv-period-btn{padding:5px 12px;font-size:11px;border:1px solid var(--border);background:var(--surface);border-radius:14px;cursor:pointer;color:var(--text2);font-family:'DM Sans',sans-serif;}
 .inv-period-btn.active{background:var(--primary);color:#fff;border-color:var(--primary);}
 .metric-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.1rem 1.25rem;}
+.metric-card.clickable{cursor:pointer;transition:border-color .15s,box-shadow .15s;}
+.metric-card.clickable:hover{border-color:var(--primary);box-shadow:0 2px 10px rgba(94,114,235,.12);}
+.metric-hint{font-size:10px;color:var(--primary);margin-top:6px;font-weight:500;}
 .metric-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px;}
 .metric-value{font-size:22px;font-weight:600;letter-spacing:-.5px;line-height:1;margin-bottom:3px;color:var(--text);}
 .metric-value.pos{color:var(--green);}
@@ -510,10 +513,11 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
         <div class="metric-value" id="mTotal">—</div>
         <div class="metric-sub" id="mTotalSub">—</div>
       </div>
-      <div class="metric-card">
+      <div class="metric-card clickable" id="mExtraCard" onclick="openExtraPoolModal()">
         <div class="metric-label">Gastos extraordinarios</div>
         <div class="metric-value" id="mExtraArs">—</div>
         <div class="metric-sub" id="mExtraUsd">—</div>
+        <div class="metric-hint">ver pozo anual →</div>
       </div>
     </div>
     <!-- 2. Add expense -->
@@ -531,18 +535,6 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
       </div>
       <div class="bsum-track"><div class="bsum-fill" id="bsumFill"></div><div class="bsum-pace" id="bsumPace"></div></div>
       <div class="bsum-foot"><span id="bsumVerdict">—</span><span id="bsumPaceLbl" class="bsum-pace-lbl">—</span></div>
-    </div>
-    <!-- Pozo anual de extraordinarios (corre en paralelo a la meta variable) -->
-    <div class="card" id="extraPoolCard">
-      <div class="bsum-top">
-        <div>
-          <div class="bsum-label">Pozo anual de extraordinarios <span id="xpYear"></span></div>
-          <div class="bsum-amounts"><span id="xpSpent">—</span> de <span id="xpMax">—</span></div>
-        </div>
-        <div class="bsum-pct" id="xpPct">—</div>
-      </div>
-      <div class="bsum-track"><div class="bsum-fill" id="xpFill"></div><div class="bsum-mark" id="xpIdeal"></div></div>
-      <div class="bsum-foot"><span id="xpVerdict">—</span><span id="xpFoot" class="bsum-pace-lbl">—</span></div>
     </div>
     <!-- Budget grid + editor (protagonista, arriba) -->
     <div class="section-title">Presupuesto por categoría <span style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none">— clic para detalle</span></div>
@@ -723,6 +715,30 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
       <div class="card-title" style="text-align:center;margin-bottom:8px;">Próximamente con persistencia en Supabase</div>
       <p>Por ahora podés clickear cualquier card y guardar saldo + inyección de capital del mes en <code>localStorage</code> de tu navegador.</p>
       <p>Cuando creemos la tabla <code>investments</code> en Supabase, las cards se sincronizan automáticamente entre dispositivos. Te paso el SQL aparte cuando termine el deploy.</p>
+    </div>
+  </div>
+
+  <!-- MODAL: Pozo anual de extraordinarios -->
+  <div class="modal-overlay" id="extraPoolModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Pozo anual de extraordinarios</div>
+        <button class="modal-close" id="extraPoolClose">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="extraPoolCard">
+          <div class="bsum-top">
+            <div>
+              <div class="bsum-label">En lo que va de <span id="xpYear"></span></div>
+              <div class="bsum-amounts"><span id="xpSpent">—</span> de <span id="xpMax">—</span></div>
+            </div>
+            <div class="bsum-pct" id="xpPct">—</div>
+          </div>
+          <div class="bsum-track"><div class="bsum-fill" id="xpFill"></div><div class="bsum-mark" id="xpIdeal"></div></div>
+          <div class="bsum-foot"><span id="xpVerdict">—</span><span id="xpFoot" class="bsum-pace-lbl">—</span></div>
+        </div>
+        <p style="font-size:12px;color:var(--text3);margin-top:16px;line-height:1.5;">Los extraordinarios corren <strong>en paralelo</strong> a tu meta de gasto variable — no la tocan. El pozo está dimensionado para que tu ahorro quede entre 30% y 40% del ingreso: la marca verde es el nivel ideal (ahorro 40%) y el tope es el piso de 30%.</p>
+      </div>
     </div>
   </div>
 
@@ -2997,6 +3013,14 @@ document.querySelectorAll('.inv-period-btn').forEach(b=>{
     renderInvestments();
   };
 });
+
+// Pozo anual de extraordinarios — modal (se abre desde la card de extraordinarios)
+const extraPoolModal=document.getElementById('extraPoolModal');
+window.openExtraPoolModal=function(){extraPoolModal.classList.add('active');};
+function closeExtraPool(){extraPoolModal.classList.remove('active');}
+document.getElementById('extraPoolClose').onclick=closeExtraPool;
+extraPoolModal.onclick=function(e){if(e.target===extraPoolModal)closeExtraPool();};
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeExtraPool();});
 
 const invModal=document.getElementById('invModal');
 let invEditing=null;
