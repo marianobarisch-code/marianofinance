@@ -1402,7 +1402,7 @@ function initBudgets(cats){
 const BUDGET_MARGIN=1.20; // 20% tolerance above average
 const BUDGET_FLOOR=5000; // categories below this avg: no alert
 function recomputeBudgetsFor(monthKey,catsArg){
-  const cats=catsArg||[...new Set(varRows.map(r=>r.cat))];
+  const cats=(catsArg||[...new Set(varRows.map(r=>r.cat))]).filter(c=>c!=='Extraordinary');
   const iso=monthKey?(monthKey+'-01'):null;
   cats.forEach(cat=>{
     // 1. If user saved a manual budget for this month, use it
@@ -1779,6 +1779,7 @@ function renderBudget(k){
   const sumCard=document.getElementById('budgetSummaryCard');
   if(sumCard){
     const allCats=new Set([...sorted.map(([c])=>c),...Object.keys(budgets)]);
+    allCats.delete('Extraordinary'); // extraordinarios corren en paralelo, no tocan la meta variable
     let spentTot=0,budTot=0;
     sorted.forEach(([,v])=>spentTot+=v);
     allCats.forEach(c=>{budTot+=budgets[c]||0;});
