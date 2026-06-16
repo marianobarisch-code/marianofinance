@@ -2940,15 +2940,16 @@ initChartToggles();
 // ── INVESTMENTS TAB ───────────────────────────────────────────
 const INV_PORTFOLIOS=['StoneX','Binance','eToro'];
 // ── INVESTMENTS ──────────────────────────────────────────────
+// mode 'valorizacion': rendimiento = valor actual − invertido (+ cash). mode 'renta': solo cuenta el cash cobrado; la valorización NO suma hasta vender.
 const PRODUCTIVE_ASSETS=[
-  {name:'StoneX',label:'StoneX',color:'#5E72EB'},
-  {name:'Binance',label:'Binance',color:'#5E72EB'},
-  {name:'eToro',label:'eToro',color:'#5E72EB'},
-  {name:'GreenLat',label:'GreenLat',color:'#FDC094'},
-  {name:'Préstamo QUEM (Walter y Mati)',label:'Préstamo QUEM',color:'#FDC094'},
-  {name:'Littio (Equity)',label:'Littio Equity',color:'#FDC094'},
-  {name:'Littio (Pots)',label:'Littio Pots',color:'#FDC094'},
-  {name:'Inmueble - Depto Libertador',label:'Depto Libertador',color:'#1F2F98'}
+  {name:'StoneX',label:'StoneX',color:'#5E72EB',mode:'valorizacion'},
+  {name:'Binance',label:'Binance',color:'#5E72EB',mode:'valorizacion'},
+  {name:'eToro',label:'eToro',color:'#5E72EB',mode:'valorizacion'},
+  {name:'Littio (Equity)',label:'Littio Equity',color:'#5E72EB',mode:'valorizacion'},
+  {name:'Littio (Pots)',label:'Littio Pots',color:'#FDC094',mode:'renta'},
+  {name:'Préstamo QUEM (Walter y Mati)',label:'Préstamo QUEM',color:'#FDC094',mode:'renta'},
+  {name:'GreenLat',label:'GreenLat',color:'#FDC094',mode:'renta'},
+  {name:'Inmueble - Depto Libertador',label:'Depto Libertador',color:'#1F2F98',mode:'renta'}
 ];
 const fmtUSD0=n=>'US$ '+Math.round(n).toLocaleString('en-US');
 function assetValuations(asset){
@@ -2972,16 +2973,18 @@ function xirr(cf){
   return (lo+hi)/2;
 }
 function assetMetrics(asset){
+  const cfg=PRODUCTIVE_ASSETS.find(a=>a.name===asset)||{mode:'valorizacion'};
   const flows=assetFlowList(asset);
   const invested=flows.filter(f=>f.type==='inyeccion').reduce((s,f)=>s+f.amount,0);
   const withdrawn=flows.filter(f=>f.type==='retiro').reduce((s,f)=>s+f.amount,0);
   const curVal=assetCurrentValue(asset);
-  const gain=(curVal!=null?curVal:0)+withdrawn-invested;
+  // Renta: solo cuenta el cash cobrado (la valorización no se realiza hasta vender). Valorización: valor actual + cash − invertido.
+  const gain=cfg.mode==='renta'?withdrawn:((curVal!=null?curVal:0)+withdrawn-invested);
   const gainPct=invested>0?gain/invested*100:null;
   const cf=flows.map(f=>({date:f.date,amount:f.type==='inyeccion'?-f.amount:f.amount}));
   if(curVal!=null&&curVal!==0)cf.push({date:new Date(),amount:curVal});
   const r=invested>0?xirr(cf):null;
-  return{flows,invested,withdrawn,curVal,gain,gainPct,annual:r!=null?r*100:null};
+  return{mode:cfg.mode,flows,invested,withdrawn,curVal,gain,gainPct,annual:r!=null?r*100:null};
 }
 function renderInvestments(){
   const wrap=document.getElementById('invCards');
@@ -3018,11 +3021,12 @@ function openAssetDetail(asset){
   const m=assetMetrics(asset);
   document.getElementById('amTitle').textContent=assetLabel(asset);
   const gCls=m.gain>=0?'pos':'neg';
+  const isRenta=m.mode==='renta';
   const cells=[];
-  cells.push(['Valorización actual',m.curVal!=null?fmtUSD0(m.curVal):'sin dato en Net Worth','']);
+  cells.push([isRenta?'Valor actual (no realizado)':'Valorización actual',m.curVal!=null?fmtUSD0(m.curVal):'sin dato en Net Worth','']);
   cells.push(['Capital invertido',m.invested?fmtUSD0(m.invested):'—','']);
-  if(m.withdrawn)cells.push(['Retirado / renta',fmtUSD0(m.withdrawn),'']);
-  cells.push(['Rendimiento total',m.flows.length?((m.gain>=0?'+':'−')+fmtUSD0(Math.abs(m.gain))+(m.gainPct!=null?' ('+(m.gainPct>=0?'+':'')+Math.round(m.gainPct)+'%)':'')):'—',m.flows.length?gCls:'']);
+  if(m.withdrawn&&!isRenta)cells.push(['Cash cobrado',fmtUSD0(m.withdrawn),'pos']);
+  cells.push([isRenta?'Renta cobrada (rendimiento)':'Rendimiento total',m.flows.length?((m.gain>=0?'+':'−')+fmtUSD0(Math.abs(m.gain))+(m.gainPct!=null?' ('+(m.gainPct>=0?'+':'')+Math.round(m.gainPct)+'%)':'')):'—',m.flows.length?gCls:'']);
   cells.push(['Rendimiento anual (TIR)',m.annual!=null?((m.annual>=0?'+':'')+m.annual.toFixed(1)+'%/año'):'s/d',m.annual!=null?gCls:'']);
   document.getElementById('amMetrics').innerHTML=cells.map(c=>'<div class="am-metric"><div class="lbl">'+c[0]+'</div><div class="val '+c[2]+'">'+c[1]+'</div></div>').join('');
   const vals=assetValuations(asset);
