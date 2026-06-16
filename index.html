@@ -144,6 +144,8 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .bsum-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:9px;font-size:12px;}
 .bsum-foot #bsumVerdict{font-weight:600;}
 .bsum-pace-lbl{color:var(--text3);font-family:'DM Mono',monospace;text-align:right;}
+#extraPoolCard{margin-bottom:1.25rem;}
+.bsum-mark{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--green);border-radius:2px;}
 .edit-toggle{font-size:12px;color:var(--primary);background:none;border:none;cursor:pointer;padding:0;margin-bottom:10px;font-family:'DM Sans',sans-serif;}
 .edit-toggle:hover{text-decoration:underline;}
 .budget-editor{display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;margin-bottom:1rem;}
@@ -529,6 +531,18 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
       </div>
       <div class="bsum-track"><div class="bsum-fill" id="bsumFill"></div><div class="bsum-pace" id="bsumPace"></div></div>
       <div class="bsum-foot"><span id="bsumVerdict">—</span><span id="bsumPaceLbl" class="bsum-pace-lbl">—</span></div>
+    </div>
+    <!-- Pozo anual de extraordinarios (corre en paralelo a la meta variable) -->
+    <div class="card" id="extraPoolCard">
+      <div class="bsum-top">
+        <div>
+          <div class="bsum-label">Pozo anual de extraordinarios <span id="xpYear"></span></div>
+          <div class="bsum-amounts"><span id="xpSpent">—</span> de <span id="xpMax">—</span></div>
+        </div>
+        <div class="bsum-pct" id="xpPct">—</div>
+      </div>
+      <div class="bsum-track"><div class="bsum-fill" id="xpFill"></div><div class="bsum-mark" id="xpIdeal"></div></div>
+      <div class="bsum-foot"><span id="xpVerdict">—</span><span id="xpFoot" class="bsum-pace-lbl">—</span></div>
     </div>
     <!-- Budget grid + editor (protagonista, arriba) -->
     <div class="section-title">Presupuesto por categoría <span style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none">— clic para detalle</span></div>
@@ -1401,6 +1415,11 @@ function initBudgets(cats){
 }
 const BUDGET_MARGIN=1.20; // 20% tolerance above average
 const BUDGET_FLOOR=5000; // categories below this avg: no alert
+// Pozo anual de extraordinarios — corre en paralelo a la meta variable, dimensionado para ahorro 30-40% del ingreso.
+const X_INCOME_M=9313;  // ingreso mensual de referencia USD (sueldo 8938 + passive 375)
+const X_COMMIT_M=5023;  // comprometido USD/mes: alquiler 1800 + fijos 1223 + variables reales 2000
+const EXTRA_POOL_IDEAL=Math.round((X_INCOME_M*0.60-X_COMMIT_M)*12); // gastás 60% → ahorro 40% (ideal)
+const EXTRA_POOL_MAX=Math.round((X_INCOME_M*0.70-X_COMMIT_M)*12);   // gastás 70% → ahorro 30% (piso)
 function recomputeBudgetsFor(monthKey,catsArg){
   const cats=(catsArg||[...new Set(varRows.map(r=>r.cat))]).filter(c=>c!=='Extraordinary');
   const iso=monthKey?(monthKey+'-01'):null;
@@ -1818,6 +1837,32 @@ function renderBudget(k){
     verdict+=' · '+(margin>=0?'queda '+fmtARS(margin):'excedido '+fmtARS(-margin));
     fill.style.background=col;pctEl.style.color=col;
     verdictEl.textContent=verdict;verdictEl.style.color=col;
+  }
+
+  // Pozo anual de extraordinarios (en paralelo, no toca la meta variable)
+  const xpCard=document.getElementById('extraPoolCard');
+  if(xpCard){
+    const yr=k.split('-')[0];
+    const ytdExtra=varRows.filter(r=>r.cat==='Extraordinary'&&String(r.date.getFullYear())===yr).reduce((s,r)=>s+(r.amtUsd||0),0);
+    const xpct=EXTRA_POOL_MAX>0?ytdExtra/EXTRA_POOL_MAX*100:0;
+    const fmtU=n=>'US$ '+Math.round(n).toLocaleString('en-US');
+    document.getElementById('xpYear').textContent=yr;
+    document.getElementById('xpSpent').textContent=fmtU(ytdExtra);
+    document.getElementById('xpMax').textContent=fmtU(EXTRA_POOL_MAX);
+    document.getElementById('xpPct').textContent=Math.round(xpct)+'%';
+    const xf=document.getElementById('xpFill');xf.style.width=Math.min(100,xpct)+'%';
+    const xi=document.getElementById('xpIdeal');
+    xi.style.left=Math.min(100,EXTRA_POOL_IDEAL/EXTRA_POOL_MAX*100)+'%';
+    xi.title='Ideal (ahorro 40%): '+fmtU(EXTRA_POOL_IDEAL);
+    let xcol,xverd;
+    if(ytdExtra<=EXTRA_POOL_IDEAL){xcol=C_POS;xverd='🟢 Ahorro 40%+ — vas holgado';}
+    else if(ytdExtra<=EXTRA_POOL_MAX){xcol=C_WARN;xverd='🟠 Ahorro 30-40%';}
+    else{xcol=C_NEG;xverd='🔴 Pozo excedido — ahorro <30%';}
+    const xrem=EXTRA_POOL_MAX-ytdExtra;
+    xverd+=' · '+(xrem>=0?'queda '+fmtU(xrem):'excedido '+fmtU(-xrem));
+    xf.style.background=xcol;document.getElementById('xpPct').style.color=xcol;
+    const xv=document.getElementById('xpVerdict');xv.textContent=xverd;xv.style.color=xcol;
+    document.getElementById('xpFoot').textContent='ideal '+fmtU(EXTRA_POOL_IDEAL)+' · tope '+fmtU(EXTRA_POOL_MAX);
   }
 
   renderEditor(sorted.map(([c])=>c));
