@@ -97,9 +97,16 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .inv-period button{border:1px solid var(--border);background:var(--surface);border-radius:8px;font-size:12px;padding:5px 11px;cursor:pointer;color:var(--text2);font-family:'DM Sans',sans-serif;font-weight:600;}
 .inv-period button.active{background:var(--primary);color:#fff;border-color:var(--primary);}
 .inv-edit-lbl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.03em;margin-top:7px;}
+.inv-val-row{display:flex;align-items:center;gap:7px;margin-top:3px;}
+.inv-val-display{font-size:18px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text);line-height:1.15;}
+.inv-val-display.empty{font-size:13px;font-weight:500;color:var(--text3);}
+.inv-val-edit{border:none;background:none;cursor:pointer;color:var(--text3);font-size:13px;line-height:1;padding:3px 5px;border-radius:5px;}
+.inv-val-edit:hover{background:var(--surface2);color:var(--primary);}
 .inv-edit{display:flex;align-items:center;gap:5px;margin-top:3px;}
-.inv-edit input{width:110px;padding:4px 7px;border:1px solid var(--border);border-radius:7px;font-size:14px;font-family:'DM Mono',monospace;background:var(--surface);color:var(--text);}
-.inv-edit-save{border:none;background:var(--primary);color:#fff;border-radius:6px;width:27px;height:27px;cursor:pointer;font-size:13px;flex-shrink:0;}
+.inv-edit input{width:104px;padding:4px 7px;border:1px solid var(--border);border-radius:7px;font-size:14px;font-family:'DM Mono',monospace;background:var(--surface);color:var(--text);}
+.inv-edit-save,.inv-edit-cancel{border:none;border-radius:6px;width:27px;height:27px;cursor:pointer;font-size:13px;flex-shrink:0;}
+.inv-edit-save{background:var(--primary);color:#fff;}
+.inv-edit-cancel{background:var(--surface2);color:var(--text2);}
 .inv-edit-save:disabled{opacity:.5;}
 .inv-invested{color:var(--text3);}
 .inv-tir{font-size:12px;font-family:'DM Mono',monospace;margin-top:5px;color:var(--text3);}
@@ -3115,17 +3122,23 @@ function renderInvestments(){
     }
     return '<div class="inv-card" data-asset="'+esc+'">'
       +'<div class="inv-name" style="color:'+a.color+'">'+a.label+'</div>'
-      +'<div class="inv-edit-lbl">Valor '+mnShort(invMonth)+(exact==null?' · sin cargar':'')+'</div>'
-      +'<div class="inv-edit"><input type="number" step="0.01" placeholder="'+(shown!=null?Math.round(shown):'US$')+'" value="'+(exact!=null?exact:'')+'" data-asset="'+esc+'"><button class="inv-edit-save" data-asset="'+esc+'" title="Guardar valor del mes">✓</button></div>'
+      +'<div class="inv-edit-lbl">Valor '+mnShort(invMonth)+'</div>'
+      +'<div class="inv-val-row"><div class="inv-val-display'+(shown==null?' empty':'')+'">'+(shown!=null?fmtUSD0(shown):'sin cargar')+'</div><button class="inv-val-edit" title="Editar valor del mes">✎</button></div>'
+      +'<div class="inv-edit" style="display:none;"><input type="number" step="0.01" placeholder="'+(shown!=null?Math.round(shown):'US$')+'" value="'+(exact!=null?exact:'')+'"><button class="inv-edit-save" title="Guardar">✓</button><button class="inv-edit-cancel" title="Cancelar">✕</button></div>'
       +body+'</div>';
   }).join('');
-  wrap.querySelectorAll('.inv-card').forEach(card=>{card.onclick=(e)=>{if(e.target.closest('.inv-edit'))return;openAssetDetail(card.getAttribute('data-asset'));};});
-  wrap.querySelectorAll('.inv-edit input').forEach(inp=>{
-    inp.onclick=e=>e.stopPropagation();
-    inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();invSaveValuation(inp.getAttribute('data-asset'),inp.value);}};
-  });
-  wrap.querySelectorAll('.inv-edit-save').forEach(btn=>{
-    btn.onclick=e=>{e.stopPropagation();const inp=btn.parentElement.querySelector('input');invSaveValuation(btn.getAttribute('data-asset'),inp.value,btn);};
+  wrap.querySelectorAll('.inv-card').forEach(card=>{
+    const asset=card.getAttribute('data-asset');
+    const valRow=card.querySelector('.inv-val-row'),editRow=card.querySelector('.inv-edit');
+    const input=editRow.querySelector('input'),saveBtn=editRow.querySelector('.inv-edit-save'),cancelBtn=editRow.querySelector('.inv-edit-cancel'),editBtn=card.querySelector('.inv-val-edit');
+    const showEdit=()=>{valRow.style.display='none';editRow.style.display='flex';input.focus();input.select();};
+    const hideEdit=()=>{editRow.style.display='none';valRow.style.display='flex';};
+    card.onclick=e=>{if(e.target.closest('.inv-val-row')||e.target.closest('.inv-edit'))return;openAssetDetail(asset);};
+    editBtn.onclick=e=>{e.stopPropagation();showEdit();};
+    cancelBtn.onclick=e=>{e.stopPropagation();hideEdit();};
+    input.onclick=e=>e.stopPropagation();
+    input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();invSaveValuation(asset,input.value,saveBtn);}else if(e.key==='Escape'){hideEdit();}};
+    saveBtn.onclick=e=>{e.stopPropagation();invSaveValuation(asset,input.value,saveBtn);};
   });
 }
 async function invSaveValuation(asset,raw,btn){
