@@ -83,9 +83,6 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .inv-period-btn{padding:5px 12px;font-size:11px;border:1px solid var(--border);background:var(--surface);border-radius:14px;cursor:pointer;color:var(--text2);font-family:'DM Sans',sans-serif;}
 .inv-period-btn.active{background:var(--primary);color:#fff;border-color:var(--primary);}
 .inv-intro{font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:16px;background:var(--surface2);border-radius:8px;padding:11px 13px;}
-.inv-monthbar{display:flex;align-items:center;gap:8px;margin-bottom:14px;}
-.inv-monthbar-lbl{font-size:13px;color:var(--text2);font-weight:600;}
-.inv-monthbar select{padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text);cursor:pointer;}
 .inv-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px;}
 .inv-sum-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 14px;}
 .inv-sum-lbl{font-size:11px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.03em;display:flex;align-items:center;gap:6px;margin-bottom:7px;}
@@ -108,6 +105,9 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .inv-edit-save{background:var(--primary);color:#fff;}
 .inv-edit-cancel{background:var(--surface2);color:var(--text2);}
 .inv-edit-save:disabled{opacity:.5;}
+.inv-stale{display:inline-block;margin-top:5px;font-size:10.5px;font-weight:600;color:var(--amber);background:var(--amber-bg);border-radius:6px;padding:2px 7px;cursor:pointer;}
+.inv-stale:hover{filter:brightness(.97);}
+.inv-rtag{font-size:9.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;background:var(--surface2);border-radius:4px;padding:1px 5px;vertical-align:middle;}
 .inv-invested{color:var(--text3);}
 .inv-tir{font-size:12px;font-family:'DM Mono',monospace;margin-top:5px;color:var(--text3);}
 .inv-tir .pos{color:var(--green);} .inv-tir .neg{color:var(--red);}
@@ -735,12 +735,7 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 
   <!-- TAB: INVESTMENTS -->
   <div class="tab-panel" id="tab-investments">
-    <div class="inv-intro">Tus <strong>activos productivos</strong>. Elegí el mes para ver y editar la valuación de cada uno (se refleja en Net Worth). La <strong>variación</strong> y la <strong>renta</strong> se miden sobre el período que elijas; la <strong>TIR</strong> de cada card es tu rendimiento anualizado.</div>
-    <div class="inv-monthbar">
-      <span class="inv-monthbar-lbl">Mes:</span>
-      <select id="invMonthSel"></select>
-      <select id="invYearSel"></select>
-    </div>
+    <div class="inv-intro">Tus <strong>activos productivos</strong>. Usá el selector de mes de arriba para ver y editar la valuación de cada uno (se refleja en Net Worth). La <strong>variación</strong>, la <strong>renta</strong> y el rendimiento de cada card se miden sobre el período que elijas abajo.</div>
     <div class="inv-summary">
       <div class="inv-sum-card">
         <div class="inv-sum-lbl">Total Productive Assets</div>
@@ -1543,6 +1538,8 @@ function render(){
   renderFixed(k);
   renderNetWorth(k);
   renderInsights(k);
+  const invTab=document.getElementById('tab-investments');
+  if(invTab&&invTab.classList.contains('active'))renderInvestments();
 }
 
 // ── BALANCE TAB ───────────────────────────────────────────────
@@ -3019,22 +3016,47 @@ function invIncludedStart(endKey){
 }
 function invInjectionsBetween(startKey,endKey){let net=0;(assetFlows||[]).forEach(f=>{const mo=String(f.flow_date).slice(0,7);if(mo>=startKey&&mo<=endKey){const amt=parseFloat(f.amount_usd)||0,t=f.flow_type||'inyeccion';if(t==='inyeccion')net+=amt;else if(t==='retiro')net-=amt;}});return net;}
 function invRentaBetween(startKey,endKey){const byc={Airbnb:0,Littio:0,QUEM:0};let total=0;(incomeRows||[]).forEach(r=>{if(r.category!=='Passive Income'||!r.date)return;const mo=String(r.date).slice(0,7);if(mo>=startKey&&mo<=endKey){const amt=parseFloat(r.amount_usd)||0;total+=amt;if(byc[r.subcategory]!=null)byc[r.subcategory]+=amt;}});return{total,byc};}
-function invPopulateMonthPicker(){
-  const mSel=document.getElementById('invMonthSel'),ySel=document.getElementById('invYearSel');
-  if(!mSel||!ySel)return;
-  const mNames=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  mSel.innerHTML=mNames.map((n,i)=>'<option value="'+(i+1)+'">'+n+'</option>').join('');
-  const ys=new Set((months||[]).map(m=>m.split('-')[0]));const ty=new Date().getFullYear();ys.add(String(ty));ys.add(String(ty+1));
-  ySel.innerHTML=[...ys].sort().map(y=>'<option value="'+y+'">'+y+'</option>').join('');
-  mSel.onchange=ySel.onchange=()=>{invMonth=ySel.value+'-'+String(mSel.value).padStart(2,'0');renderInvestments();};
-}
-function invSyncMonthPicker(){
-  const mSel=document.getElementById('invMonthSel'),ySel=document.getElementById('invYearSel');
-  if(!mSel||!ySel||!invMonth)return;
-  if(!mSel.options.length)invPopulateMonthPicker();
-  const[y,m]=invMonth.split('-');mSel.value=parseInt(m);ySel.value=y;
+const INV_PERIOD_LBL={'1':'1M','3':'3M','6':'6M','12':'12M','ytd':'YTD','all':'total'};
+// Per-asset return over the selected Date Range (invPeriod) ending at invMonth.
+function assetMetricsRange(asset){
+  const cfg=PRODUCTIVE_ASSETS.find(a=>a.name===asset)||{mode:'valorizacion'};
+  const allFlows=assetFlowList(asset);
+  const lifeInvested=allFlows.filter(f=>f.type==='inyeccion').reduce((s,f)=>s+f.amount,0);
+  const valEnd=invValuationAt(asset,invMonth);
+  const today=new Date();
+  const curKey=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');
+  const termDate=invMonth>=curKey?today:new Date(invMonth+'-28T00:00:00');
+  if(invPeriod==='all'){
+    const withdrawn=allFlows.filter(f=>f.type==='retiro').reduce((s,f)=>s+f.amount,0);
+    const fees=allFlows.filter(f=>f.type==='fee').reduce((s,f)=>s+f.amount,0);
+    const gain=(cfg.mode==='renta'?withdrawn:((valEnd||0)+withdrawn-lifeInvested))-fees;
+    const gainPct=lifeInvested>0?gain/lifeInvested*100:null;
+    const cf=allFlows.map(f=>({date:f.date,amount:(f.type==='inyeccion'||f.type==='fee')?-f.amount:f.amount}));
+    if(valEnd!=null&&valEnd!==0)cf.push({date:termDate,amount:valEnd});
+    const r=lifeInvested>0?xirr(cf):null;
+    return{mode:cfg.mode,lifeInvested,valEnd,gain,gainPct,annual:r!=null?r*100:null,hasFlows:!!allFlows.length};
+  }
+  const incStart=invIncludedStart(invMonth);
+  let baseKey=invMonthMinus(incStart,1),injStart=incStart;
+  const earliest=invEarliestMonth();
+  if(earliest&&baseKey<earliest){baseKey=earliest;injStart=invNextMonth(earliest);}
+  const valStart=invValuationAt(asset,baseKey)||0;
+  const win=allFlows.filter(f=>{const mo=f.flow_date.slice(0,7);return mo>=injStart&&mo<=invMonth;});
+  const inj=win.filter(f=>f.type==='inyeccion').reduce((s,f)=>s+f.amount,0);
+  const wdr=win.filter(f=>f.type==='retiro').reduce((s,f)=>s+f.amount,0);
+  const fees=win.filter(f=>f.type==='fee').reduce((s,f)=>s+f.amount,0);
+  const gain=(cfg.mode==='renta'?wdr:((valEnd||0)-valStart-(inj-wdr)))-fees;
+  const baseCap=valStart+(cfg.mode==='renta'?0:inj);
+  const gainPct=baseCap>0?gain/baseCap*100:null;
+  const cf=[];
+  if(valStart>0)cf.push({date:new Date(baseKey+'-01T00:00:00'),amount:-valStart});
+  win.forEach(f=>cf.push({date:f.date,amount:(f.type==='inyeccion'||f.type==='fee')?-f.amount:f.amount}));
+  if(valEnd!=null&&valEnd!==0)cf.push({date:termDate,amount:valEnd});
+  const r=cf.length>=2?xirr(cf):null;
+  return{mode:cfg.mode,lifeInvested,valEnd,gain,gainPct,annual:r!=null?r*100:null,hasFlows:!!allFlows.length};
 }
 function renderInvSummary(){
+  invMonth=months[curIdx]||invMonth;
   if(!invMonth)return;
   const total=invTotalAt(invMonth);
   const tv=document.getElementById('invTotalVal');if(tv)tv.textContent=fmtUSD0(total);
@@ -3100,41 +3122,45 @@ function assetMetrics(asset){
 function renderInvestments(){
   const wrap=document.getElementById('invCards');
   if(!wrap)return;
-  if(!invMonth){const today=new Date();invMonth=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');}
-  invSyncMonthPicker();
+  invMonth=months[curIdx]||invMonth;
+  if(!invMonth)return;
   renderInvSummary();
   wrap.innerHTML=PRODUCTIVE_ASSETS.map(a=>{
-    const m=assetMetrics(a.name);
+    const m=assetMetricsRange(a.name);
     const exact=invExactValuation(a.name,invMonth);
     const shown=invValuationAt(a.name,invMonth);
     const esc=a.name.replace(/"/g,'&quot;');
     let body;
-    if(!m.flows.length){
-      body='<div class="inv-sub">sin inyecciones — click para cargar capital</div>';
+    if(!m.hasFlows){
+      body=m.mode==='renta'?'<div class="inv-sub">renta · ver Passive Income</div>':'<div class="inv-sub">sin inyecciones — click para cargar capital</div>';
     }else{
       const gCls=m.gain>=0?'pos':'neg';
       const gTxt=(m.gain>=0?'+':'−')+fmtUSD0(Math.abs(m.gain));
       const pctTxt=m.gainPct!=null?(' ('+(m.gainPct>=0?'+':'')+Math.round(m.gainPct)+'%)'):'';
       const tirTxt=m.annual!=null?((m.annual>=0?'+':'')+m.annual.toFixed(1)+'%/año'):'s/d';
-      body='<div class="inv-change inv-invested">invertido '+fmtUSD0(m.invested)+'</div>'
-          +'<div class="inv-change"><span class="'+gCls+'">'+gTxt+pctTxt+'</span></div>'
+      const tag=INV_PERIOD_LBL[invPeriod]||'';
+      body='<div class="inv-change inv-invested">invertido '+fmtUSD0(m.lifeInvested)+'</div>'
+          +'<div class="inv-change"><span class="'+gCls+'">'+gTxt+pctTxt+'</span> <span class="inv-rtag">'+tag+'</span></div>'
           +'<div class="inv-tir">TIR <strong class="'+gCls+'">'+tirTxt+'</strong></div>';
     }
+    const pencil=(exact!=null||shown==null)?'<button class="inv-val-edit" title="'+(shown==null?'Cargar valor':'Editar valor')+'">✎</button>':'';
+    const stale=(exact==null&&shown!=null)?'<div class="inv-stale" title="Actualizar valor de este mes">⚠ Sin actualizar este mes</div>':'';
     return '<div class="inv-card" data-asset="'+esc+'">'
       +'<div class="inv-name" style="color:'+a.color+'">'+a.label+'</div>'
-      +'<div class="inv-edit-lbl">Valor '+mnShort(invMonth)+'</div>'
-      +'<div class="inv-val-row"><div class="inv-val-display'+(shown==null?' empty':'')+'">'+(shown!=null?fmtUSD0(shown):'sin cargar')+'</div><button class="inv-val-edit" title="Editar valor del mes">✎</button></div>'
+      +'<div class="inv-val-row"><div class="inv-val-display'+(shown==null?' empty':'')+'">'+(shown!=null?fmtUSD0(shown):'sin cargar')+'</div>'+pencil+'</div>'
+      +stale
       +'<div class="inv-edit" style="display:none;"><input type="number" step="0.01" placeholder="'+(shown!=null?Math.round(shown):'US$')+'" value="'+(exact!=null?exact:'')+'"><button class="inv-edit-save" title="Guardar">✓</button><button class="inv-edit-cancel" title="Cancelar">✕</button></div>'
       +body+'</div>';
   }).join('');
   wrap.querySelectorAll('.inv-card').forEach(card=>{
     const asset=card.getAttribute('data-asset');
-    const valRow=card.querySelector('.inv-val-row'),editRow=card.querySelector('.inv-edit');
+    const valRow=card.querySelector('.inv-val-row'),editRow=card.querySelector('.inv-edit'),staleEl=card.querySelector('.inv-stale');
     const input=editRow.querySelector('input'),saveBtn=editRow.querySelector('.inv-edit-save'),cancelBtn=editRow.querySelector('.inv-edit-cancel'),editBtn=card.querySelector('.inv-val-edit');
-    const showEdit=()=>{valRow.style.display='none';editRow.style.display='flex';input.focus();input.select();};
-    const hideEdit=()=>{editRow.style.display='none';valRow.style.display='flex';};
-    card.onclick=e=>{if(e.target.closest('.inv-val-row')||e.target.closest('.inv-edit'))return;openAssetDetail(asset);};
-    editBtn.onclick=e=>{e.stopPropagation();showEdit();};
+    const showEdit=()=>{valRow.style.display='none';if(staleEl)staleEl.style.display='none';editRow.style.display='flex';input.focus();input.select();};
+    const hideEdit=()=>{editRow.style.display='none';valRow.style.display='flex';if(staleEl)staleEl.style.display='block';};
+    card.onclick=e=>{if(e.target.closest('.inv-val-row')||e.target.closest('.inv-edit')||e.target.closest('.inv-stale'))return;openAssetDetail(asset);};
+    if(editBtn)editBtn.onclick=e=>{e.stopPropagation();showEdit();};
+    if(staleEl)staleEl.onclick=e=>{e.stopPropagation();showEdit();};
     cancelBtn.onclick=e=>{e.stopPropagation();hideEdit();};
     input.onclick=e=>e.stopPropagation();
     input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();invSaveValuation(asset,input.value,saveBtn);}else if(e.key==='Escape'){hideEdit();}};
@@ -3235,7 +3261,7 @@ async function deleteAssetFlow(id){
 }
 window.openAssetDetail=openAssetDetail;
 // Investments summary controls
-document.querySelectorAll('#invPeriodBtns button').forEach(b=>{b.onclick=()=>{invPeriod=b.dataset.invr;document.querySelectorAll('#invPeriodBtns button').forEach(x=>x.classList.toggle('active',x===b));renderInvSummary();};});
+document.querySelectorAll('#invPeriodBtns button').forEach(b=>{b.onclick=()=>{invPeriod=b.dataset.invr;document.querySelectorAll('#invPeriodBtns button').forEach(x=>x.classList.toggle('active',x===b));renderInvestments();};});
 (function(){const d=document.querySelector('#invPeriodBtns button[data-invr="3"]');if(d)d.classList.add('active');})();
 const invVTbtn=document.getElementById('invVarToggle');if(invVTbtn)invVTbtn.onclick=()=>{invVarMode=invVarMode==='money'?'pct':'money';renderInvSummary();};
 // ── NAV ───────────────────────────────────────────────────────
