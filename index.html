@@ -2998,7 +2998,9 @@ const PRODUCTIVE_ASSETS=[
 const fmtUSD0=n=>'US$ '+Math.round(n).toLocaleString('en-US');
 let invMonth=null,invVarMode='money',invPeriod='3';
 function invAssetCategory(name){for(const g of NW_GROUPS){if(g.items&&g.items.includes(name))return g.key;}return 'inversiones';}
-function invMonthMinus(key,n){let[y,m]=key.split('-').map(Number);m-=n;while(m<1){m+=12;y--;}return y+'-'+String(m).padStart(2,'0');}
+function invMonthMinus(key,n){let[y,m]=key.split('-').map(Number);m-=n;while(m<1){m+=12;y--;}while(m>12){m-=12;y++;}return y+'-'+String(m).padStart(2,'0');}
+function invNextMonth(key){return invMonthMinus(key,-1);}
+function invEarliestMonth(){let e=null;PRODUCTIVE_ASSETS.forEach(a=>assetValuations(a.name).forEach(v=>{if(e===null||v.month<e)e=v.month;}));return e;}
 function invValuationAt(asset,monthKey){const vals=assetValuations(asset);let v=null;for(const x of vals){if(x.month<=monthKey)v=x.value;}return v;}
 function invExactValuation(asset,monthKey){const hit=assetValuations(asset).find(x=>x.month===monthKey);return hit?hit.value:null;}
 function invTotalAt(monthKey){return PRODUCTIVE_ASSETS.reduce((s,a)=>{const v=invValuationAt(a.name,monthKey);return s+(v||0);},0);}
@@ -3031,9 +3033,11 @@ function renderInvSummary(){
   const tv=document.getElementById('invTotalVal');if(tv)tv.textContent=fmtUSD0(total);
   const ts=document.getElementById('invTotalSub');if(ts)ts.textContent=invCountAt(invMonth)+' de '+PRODUCTIVE_ASSETS.length+' activos · '+mnShort(invMonth);
   const incStart=invIncludedStart(invMonth);
-  const baseKey=invMonthMinus(incStart,1);
+  let baseKey=invMonthMinus(incStart,1),injStart=incStart,clamped=false;
+  const earliest=invEarliestMonth();
+  if(earliest&&baseKey<earliest){baseKey=earliest;injStart=invNextMonth(earliest);clamped=true;}
   const valEnd=invTotalAt(invMonth),valStart=invTotalAt(baseKey);
-  const netInj=invInjectionsBetween(incStart,invMonth);
+  const netInj=invInjectionsBetween(injStart,invMonth);
   const growth=(valEnd-valStart)-netInj;
   const baseCap=valStart+netInj;
   const growthPct=baseCap>0?growth/baseCap*100:null;
@@ -3044,7 +3048,7 @@ function renderInvSummary(){
     vEl.className='inv-sum-val '+(growth>=0?'pos':'neg');
   }
   const vt=document.getElementById('invVarToggle');if(vt)vt.textContent=invVarMode==='money'?'$':'%';
-  const vs=document.getElementById('invVarSub');if(vs)vs.textContent='desde '+mnShort(incStart)+(netInj?(' · neto de '+fmtUSD0(netInj)+' aportes'):'');
+  const vs=document.getElementById('invVarSub');if(vs)vs.textContent='desde '+mnShort(baseKey)+(clamped?' · sin datos previos':'')+(netInj?(' · neto '+fmtUSD0(netInj)+' aportes'):'');
   const r=invRentaBetween(incStart,invMonth);
   const rv=document.getElementById('invRentaVal');if(rv){rv.textContent=fmtUSD0(r.total);rv.className='inv-sum-val'+(r.total>0?' pos':'');}
   const parts=[];if(r.byc.Airbnb)parts.push('Airbnb '+fmtUSD0(r.byc.Airbnb));if(r.byc.Littio)parts.push('Pots '+fmtUSD0(r.byc.Littio));if(r.byc.QUEM)parts.push('QUEM '+fmtUSD0(r.byc.QUEM));
