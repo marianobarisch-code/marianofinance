@@ -83,6 +83,24 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .inv-period-btn{padding:5px 12px;font-size:11px;border:1px solid var(--border);background:var(--surface);border-radius:14px;cursor:pointer;color:var(--text2);font-family:'DM Sans',sans-serif;}
 .inv-period-btn.active{background:var(--primary);color:#fff;border-color:var(--primary);}
 .inv-intro{font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:16px;background:var(--surface2);border-radius:8px;padding:11px 13px;}
+.inv-monthbar{display:flex;align-items:center;gap:8px;margin-bottom:14px;}
+.inv-monthbar-lbl{font-size:13px;color:var(--text2);font-weight:600;}
+.inv-monthbar select{padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text);cursor:pointer;}
+.inv-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px;}
+.inv-sum-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 14px;}
+.inv-sum-lbl{font-size:11px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.03em;display:flex;align-items:center;gap:6px;margin-bottom:7px;}
+.inv-sum-val{font-size:21px;font-weight:700;color:var(--text);line-height:1.1;font-family:'DM Mono',monospace;}
+.inv-sum-val.pos{color:var(--green);}.inv-sum-val.neg{color:var(--red);}
+.inv-sum-sub{font-size:11px;color:var(--text3);margin-top:5px;line-height:1.4;}
+.inv-var-toggle{border:1px solid var(--border);background:var(--surface2);border-radius:6px;font-size:11px;font-weight:700;padding:1px 7px;cursor:pointer;color:var(--primary);font-family:'DM Sans',sans-serif;}
+.inv-period{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;}
+.inv-period button{border:1px solid var(--border);background:var(--surface);border-radius:8px;font-size:12px;padding:5px 11px;cursor:pointer;color:var(--text2);font-family:'DM Sans',sans-serif;font-weight:600;}
+.inv-period button.active{background:var(--primary);color:#fff;border-color:var(--primary);}
+.inv-edit-lbl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.03em;margin-top:7px;}
+.inv-edit{display:flex;align-items:center;gap:5px;margin-top:3px;}
+.inv-edit input{width:110px;padding:4px 7px;border:1px solid var(--border);border-radius:7px;font-size:14px;font-family:'DM Mono',monospace;background:var(--surface);color:var(--text);}
+.inv-edit-save{border:none;background:var(--primary);color:#fff;border-radius:6px;width:27px;height:27px;cursor:pointer;font-size:13px;flex-shrink:0;}
+.inv-edit-save:disabled{opacity:.5;}
 .inv-invested{color:var(--text3);}
 .inv-tir{font-size:12px;font-family:'DM Mono',monospace;margin-top:5px;color:var(--text3);}
 .inv-tir .pos{color:var(--green);} .inv-tir .neg{color:var(--red);}
@@ -710,7 +728,32 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 
   <!-- TAB: INVESTMENTS -->
   <div class="tab-panel" id="tab-investments">
-    <div class="inv-intro">Tus assets productivos. La <strong>valorización</strong> sale de Net Worth; vos cargás las <strong>inyecciones de capital</strong> al clickear cada card. La <strong>TIR</strong> es tu rendimiento anualizado (pondera cuándo pusiste cada peso).</div>
+    <div class="inv-intro">Tus <strong>activos productivos</strong>. Elegí el mes para ver y editar la valuación de cada uno (se refleja en Net Worth). La <strong>variación</strong> y la <strong>renta</strong> se miden sobre el período que elijas; la <strong>TIR</strong> de cada card es tu rendimiento anualizado.</div>
+    <div class="inv-monthbar">
+      <span class="inv-monthbar-lbl">Mes:</span>
+      <select id="invMonthSel"></select>
+      <select id="invYearSel"></select>
+    </div>
+    <div class="inv-summary">
+      <div class="inv-sum-card">
+        <div class="inv-sum-lbl">Total Productive Assets</div>
+        <div class="inv-sum-val" id="invTotalVal">—</div>
+        <div class="inv-sum-sub" id="invTotalSub"></div>
+      </div>
+      <div class="inv-sum-card">
+        <div class="inv-sum-lbl">Variación <button class="inv-var-toggle" id="invVarToggle">$</button></div>
+        <div class="inv-sum-val" id="invVarVal">—</div>
+        <div class="inv-sum-sub" id="invVarSub"></div>
+      </div>
+      <div class="inv-sum-card">
+        <div class="inv-sum-lbl">Renta generada</div>
+        <div class="inv-sum-val" id="invRentaVal">—</div>
+        <div class="inv-sum-sub" id="invRentaSub"></div>
+      </div>
+    </div>
+    <div class="inv-period" id="invPeriodBtns">
+      <button data-invr="1">1M</button><button data-invr="3">3M</button><button data-invr="6">6M</button><button data-invr="ytd">YTD</button><button data-invr="12">12M</button><button data-invr="all">Todo</button>
+    </div>
     <div class="inv-cards" id="invCards"></div>
   </div>
 
@@ -2952,6 +2995,60 @@ const PRODUCTIVE_ASSETS=[
   {name:'Inmueble - Depto Libertador',label:'Depto Libertador',color:'#1F2F98',mode:'renta'}
 ];
 const fmtUSD0=n=>'US$ '+Math.round(n).toLocaleString('en-US');
+let invMonth=null,invVarMode='money',invPeriod='3';
+function invAssetCategory(name){for(const g of NW_GROUPS){if(g.items&&g.items.includes(name))return g.key;}return 'inversiones';}
+function invMonthMinus(key,n){let[y,m]=key.split('-').map(Number);m-=n;while(m<1){m+=12;y--;}return y+'-'+String(m).padStart(2,'0');}
+function invValuationAt(asset,monthKey){const vals=assetValuations(asset);let v=null;for(const x of vals){if(x.month<=monthKey)v=x.value;}return v;}
+function invExactValuation(asset,monthKey){const hit=assetValuations(asset).find(x=>x.month===monthKey);return hit?hit.value:null;}
+function invTotalAt(monthKey){return PRODUCTIVE_ASSETS.reduce((s,a)=>{const v=invValuationAt(a.name,monthKey);return s+(v||0);},0);}
+function invCountAt(monthKey){return PRODUCTIVE_ASSETS.filter(a=>invValuationAt(a.name,monthKey)!=null).length;}
+function invIncludedStart(endKey){
+  if(invPeriod==='all'){let e=endKey;PRODUCTIVE_ASSETS.forEach(a=>assetValuations(a.name).forEach(v=>{if(v.month<e)e=v.month;}));return e;}
+  if(invPeriod==='ytd')return endKey.split('-')[0]+'-01';
+  return invMonthMinus(endKey,parseInt(invPeriod)-1);
+}
+function invInjectionsBetween(startKey,endKey){let net=0;(assetFlows||[]).forEach(f=>{const mo=String(f.flow_date).slice(0,7);if(mo>=startKey&&mo<=endKey){const amt=parseFloat(f.amount_usd)||0,t=f.flow_type||'inyeccion';if(t==='inyeccion')net+=amt;else if(t==='retiro')net-=amt;}});return net;}
+function invRentaBetween(startKey,endKey){const byc={Airbnb:0,Littio:0,QUEM:0};let total=0;(incomeRows||[]).forEach(r=>{if(r.category!=='Passive Income'||!r.date)return;const mo=String(r.date).slice(0,7);if(mo>=startKey&&mo<=endKey){const amt=parseFloat(r.amount_usd)||0;total+=amt;if(byc[r.subcategory]!=null)byc[r.subcategory]+=amt;}});return{total,byc};}
+function invPopulateMonthPicker(){
+  const mSel=document.getElementById('invMonthSel'),ySel=document.getElementById('invYearSel');
+  if(!mSel||!ySel)return;
+  const mNames=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  mSel.innerHTML=mNames.map((n,i)=>'<option value="'+(i+1)+'">'+n+'</option>').join('');
+  const ys=new Set((months||[]).map(m=>m.split('-')[0]));const ty=new Date().getFullYear();ys.add(String(ty));ys.add(String(ty+1));
+  ySel.innerHTML=[...ys].sort().map(y=>'<option value="'+y+'">'+y+'</option>').join('');
+  mSel.onchange=ySel.onchange=()=>{invMonth=ySel.value+'-'+String(mSel.value).padStart(2,'0');renderInvestments();};
+}
+function invSyncMonthPicker(){
+  const mSel=document.getElementById('invMonthSel'),ySel=document.getElementById('invYearSel');
+  if(!mSel||!ySel||!invMonth)return;
+  if(!mSel.options.length)invPopulateMonthPicker();
+  const[y,m]=invMonth.split('-');mSel.value=parseInt(m);ySel.value=y;
+}
+function renderInvSummary(){
+  if(!invMonth)return;
+  const total=invTotalAt(invMonth);
+  const tv=document.getElementById('invTotalVal');if(tv)tv.textContent=fmtUSD0(total);
+  const ts=document.getElementById('invTotalSub');if(ts)ts.textContent=invCountAt(invMonth)+' de '+PRODUCTIVE_ASSETS.length+' activos · '+mnShort(invMonth);
+  const incStart=invIncludedStart(invMonth);
+  const baseKey=invMonthMinus(incStart,1);
+  const valEnd=invTotalAt(invMonth),valStart=invTotalAt(baseKey);
+  const netInj=invInjectionsBetween(incStart,invMonth);
+  const growth=(valEnd-valStart)-netInj;
+  const baseCap=valStart+netInj;
+  const growthPct=baseCap>0?growth/baseCap*100:null;
+  const vEl=document.getElementById('invVarVal');
+  if(vEl){
+    if(invVarMode==='money')vEl.textContent=(growth>=0?'+':'−')+fmtUSD0(Math.abs(growth));
+    else vEl.textContent=growthPct==null?'s/d':((growthPct>=0?'+':'−')+Math.abs(growthPct).toFixed(1)+'%');
+    vEl.className='inv-sum-val '+(growth>=0?'pos':'neg');
+  }
+  const vt=document.getElementById('invVarToggle');if(vt)vt.textContent=invVarMode==='money'?'$':'%';
+  const vs=document.getElementById('invVarSub');if(vs)vs.textContent='desde '+mnShort(incStart)+(netInj?(' · neto de '+fmtUSD0(netInj)+' aportes'):'');
+  const r=invRentaBetween(incStart,invMonth);
+  const rv=document.getElementById('invRentaVal');if(rv){rv.textContent=fmtUSD0(r.total);rv.className='inv-sum-val'+(r.total>0?' pos':'');}
+  const parts=[];if(r.byc.Airbnb)parts.push('Airbnb '+fmtUSD0(r.byc.Airbnb));if(r.byc.Littio)parts.push('Pots '+fmtUSD0(r.byc.Littio));if(r.byc.QUEM)parts.push('QUEM '+fmtUSD0(r.byc.QUEM));
+  const rs=document.getElementById('invRentaSub');if(rs)rs.textContent=parts.length?parts.join(' · '):'sin renta en el período';
+}
 function assetValuations(asset){
   return sbNwRows.filter(r=>r.item_name===asset)
     .map(r=>({month:String(r.month_year).slice(0,7),date:new Date(String(r.month_year).slice(0,10)+'T00:00:00'),value:parseFloat(r.amount_usd)||0}))
@@ -2989,9 +3086,14 @@ function assetMetrics(asset){
 function renderInvestments(){
   const wrap=document.getElementById('invCards');
   if(!wrap)return;
+  if(!invMonth){const today=new Date();invMonth=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');}
+  invSyncMonthPicker();
+  renderInvSummary();
   wrap.innerHTML=PRODUCTIVE_ASSETS.map(a=>{
     const m=assetMetrics(a.name);
-    const balTxt=m.curVal!=null?fmtUSD0(m.curVal):'—';
+    const exact=invExactValuation(a.name,invMonth);
+    const shown=invValuationAt(a.name,invMonth);
+    const esc=a.name.replace(/"/g,'&quot;');
     let body;
     if(!m.flows.length){
       body='<div class="inv-sub">sin inyecciones — click para cargar capital</div>';
@@ -3004,12 +3106,35 @@ function renderInvestments(){
           +'<div class="inv-change"><span class="'+gCls+'">'+gTxt+pctTxt+'</span></div>'
           +'<div class="inv-tir">TIR <strong class="'+gCls+'">'+tirTxt+'</strong></div>';
     }
-    return '<div class="inv-card" data-asset="'+a.name.replace(/"/g,'&quot;')+'">'
+    return '<div class="inv-card" data-asset="'+esc+'">'
       +'<div class="inv-name" style="color:'+a.color+'">'+a.label+'</div>'
-      +'<div class="inv-balance'+(m.curVal==null?' empty':'')+'">'+balTxt+'</div>'
+      +'<div class="inv-edit-lbl">Valor '+mnShort(invMonth)+(exact==null?' · sin cargar':'')+'</div>'
+      +'<div class="inv-edit"><input type="number" step="0.01" placeholder="'+(shown!=null?Math.round(shown):'US$')+'" value="'+(exact!=null?exact:'')+'" data-asset="'+esc+'"><button class="inv-edit-save" data-asset="'+esc+'" title="Guardar valor del mes">✓</button></div>'
       +body+'</div>';
   }).join('');
-  wrap.querySelectorAll('.inv-card').forEach(card=>{card.onclick=()=>openAssetDetail(card.getAttribute('data-asset'));});
+  wrap.querySelectorAll('.inv-card').forEach(card=>{card.onclick=(e)=>{if(e.target.closest('.inv-edit'))return;openAssetDetail(card.getAttribute('data-asset'));};});
+  wrap.querySelectorAll('.inv-edit input').forEach(inp=>{
+    inp.onclick=e=>e.stopPropagation();
+    inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();invSaveValuation(inp.getAttribute('data-asset'),inp.value);}};
+  });
+  wrap.querySelectorAll('.inv-edit-save').forEach(btn=>{
+    btn.onclick=e=>{e.stopPropagation();const inp=btn.parentElement.querySelector('input');invSaveValuation(btn.getAttribute('data-asset'),inp.value,btn);};
+  });
+}
+async function invSaveValuation(asset,raw,btn){
+  raw=(raw||'').trim();
+  if(raw==='')return;
+  const amt=parseFloat(raw);
+  if(!isFinite(amt)||amt<0){alert('Valor inválido para '+assetLabel(asset)+' (número ≥ 0).');return;}
+  const iso=invMonth+'-01';
+  if(iso<NW_CUTOFF){alert('No se puede editar un mes pre-cutoff (anterior a Mayo 2026).');return;}
+  if(btn){btn.disabled=true;btn.textContent='…';}
+  try{
+    const{error}=await sb.from('net_worth_balances').upsert([{month_year:iso,item_name:asset,category:invAssetCategory(asset),amount_usd:amt}],{onConflict:'month_year,item_name'});
+    if(error)throw new Error(error.message);
+    await loadData();
+    renderInvestments();
+  }catch(e){alert('Error al guardar: '+e.message);if(btn){btn.disabled=false;btn.textContent='✓';}}
 }
 
 // ── ASSET DETAIL MODAL ────────────────────────────────────────
@@ -3087,6 +3212,10 @@ async function deleteAssetFlow(id){
   }catch(e){alert('Error al borrar: '+e.message);}
 }
 window.openAssetDetail=openAssetDetail;
+// Investments summary controls
+document.querySelectorAll('#invPeriodBtns button').forEach(b=>{b.onclick=()=>{invPeriod=b.dataset.invr;document.querySelectorAll('#invPeriodBtns button').forEach(x=>x.classList.toggle('active',x===b));renderInvSummary();};});
+(function(){const d=document.querySelector('#invPeriodBtns button[data-invr="3"]');if(d)d.classList.add('active');})();
+const invVTbtn=document.getElementById('invVarToggle');if(invVTbtn)invVTbtn.onclick=()=>{invVarMode=invVarMode==='money'?'pct':'money';renderInvSummary();};
 // ── NAV ───────────────────────────────────────────────────────
 document.getElementById('toggleBudgets').onclick=function(){
   const el=document.getElementById('budgetEditor');
