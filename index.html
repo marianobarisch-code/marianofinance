@@ -799,6 +799,7 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
             <select id="amType">
               <option value="inyeccion">Inyección de capital</option>
               <option value="retiro">Retiro / renta cobrada</option>
+              <option value="fee">Fee / mantenimiento</option>
             </select>
             <input type="date" id="amDate">
             <input type="number" id="amAmount" placeholder="USD" step="0.01">
@@ -3074,14 +3075,16 @@ function assetMetrics(asset){
   const flows=assetFlowList(asset);
   const invested=flows.filter(f=>f.type==='inyeccion').reduce((s,f)=>s+f.amount,0);
   const withdrawn=flows.filter(f=>f.type==='retiro').reduce((s,f)=>s+f.amount,0);
+  const fees=flows.filter(f=>f.type==='fee').reduce((s,f)=>s+f.amount,0);
   const curVal=assetCurrentValue(asset);
-  // Renta: solo cuenta el cash cobrado (la valorización no se realiza hasta vender). Valorización: valor actual + cash − invertido.
-  const gain=cfg.mode==='renta'?withdrawn:((curVal!=null?curVal:0)+withdrawn-invested);
+  // Renta: solo cuenta el cash cobrado (la valorización no se realiza hasta vender). Valorización: valor actual + cash − invertido. Fees (cash de bolsillo) restan en ambos.
+  const gain=(cfg.mode==='renta'?withdrawn:((curVal!=null?curVal:0)+withdrawn-invested))-fees;
   const gainPct=invested>0?gain/invested*100:null;
-  const cf=flows.map(f=>({date:f.date,amount:f.type==='inyeccion'?-f.amount:f.amount}));
+  // Fees e inyecciones son salidas de bolsillo (negativas); retiros/renta son entradas (positivas).
+  const cf=flows.map(f=>({date:f.date,amount:(f.type==='inyeccion'||f.type==='fee')?-f.amount:f.amount}));
   if(curVal!=null&&curVal!==0)cf.push({date:new Date(),amount:curVal});
   const r=invested>0?xirr(cf):null;
-  return{mode:cfg.mode,flows,invested,withdrawn,curVal,gain,gainPct,annual:r!=null?r*100:null};
+  return{mode:cfg.mode,flows,invested,withdrawn,fees,curVal,gain,gainPct,annual:r!=null?r*100:null};
 }
 function renderInvestments(){
   const wrap=document.getElementById('invCards');
@@ -3150,6 +3153,7 @@ function openAssetDetail(asset){
   const cells=[];
   cells.push([isRenta?'Valor actual (no realizado)':'Valorización actual',m.curVal!=null?fmtUSD0(m.curVal):'sin dato en Net Worth','']);
   cells.push(['Capital invertido',m.invested?fmtUSD0(m.invested):'—','']);
+  if(m.fees)cells.push(['Fees pagados','−'+fmtUSD0(m.fees),'neg']);
   if(m.withdrawn&&!isRenta)cells.push(['Cash cobrado',fmtUSD0(m.withdrawn),'pos']);
   cells.push([isRenta?'Renta cobrada (rendimiento)':'Rendimiento total',m.flows.length?((m.gain>=0?'+':'−')+fmtUSD0(Math.abs(m.gain))+(m.gainPct!=null?' ('+(m.gainPct>=0?'+':'')+Math.round(m.gainPct)+'%)':'')):'—',m.flows.length?gCls:'']);
   cells.push(['Rendimiento anual (TIR)',m.annual!=null?((m.annual>=0?'+':'')+m.annual.toFixed(1)+'%/año'):'s/d',m.annual!=null?gCls:'']);
@@ -3168,7 +3172,8 @@ function openAssetDetail(asset){
   const fl=m.flows.slice().reverse();
   document.getElementById('amFlows').innerHTML=fl.length?fl.map(f=>{
     const isIn=f.type==='inyeccion';
-    return '<div class="am-flow"><span class="af-date">'+f.flow_date+'</span><span class="af-type">'+(isIn?'Inyección':'Retiro/renta')+(f.note?' · '+f.note:'')+'</span><span class="af-amt '+(isIn?'in':'out')+'">'+(isIn?'+':'−')+fmtUSD0(f.amount)+'</span><button class="af-del" data-id="'+f.id+'" title="Borrar">🗑</button></div>';
+    const lbl=f.type==='inyeccion'?'Inyección':(f.type==='fee'?'Fee / mantenimiento':'Retiro / renta');
+    return '<div class="am-flow"><span class="af-date">'+f.flow_date+'</span><span class="af-type">'+lbl+(f.note?' · '+f.note:'')+'</span><span class="af-amt '+(isIn?'in':'out')+'">'+(isIn?'+':'−')+fmtUSD0(f.amount)+'</span><button class="af-del" data-id="'+f.id+'" title="Borrar">🗑</button></div>';
   }).join(''):'<div style="font-size:12px;color:var(--text3);padding:6px 0;">Todavía no cargaste inyecciones de capital.</div>';
   document.getElementById('amFlows').querySelectorAll('.af-del').forEach(b=>{b.onclick=()=>deleteAssetFlow(b.getAttribute('data-id'));});
   document.getElementById('amType').value='inyeccion';
