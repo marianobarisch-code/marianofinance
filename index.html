@@ -3143,7 +3143,7 @@ function renderInvestments(){
           +'<div class="inv-change"><span class="'+gCls+'">'+gTxt+pctTxt+'</span> <span class="inv-rtag">'+tag+'</span></div>'
           +'<div class="inv-tir">TIR <strong class="'+gCls+'">'+tirTxt+'</strong></div>';
     }
-    const pencil=(exact!=null||shown==null)?'<button class="inv-val-edit" title="'+(shown==null?'Cargar valor':'Editar valor')+'">✎</button>':'';
+    const pencil='<button class="inv-val-edit" title="'+(shown==null?'Cargar valor':'Editar valor del mes')+'">✎</button>';
     const stale=(exact==null&&shown!=null)?'<div class="inv-stale" title="Actualizar valor de este mes">⚠ Sin actualizar este mes</div>':'';
     return '<div class="inv-card" data-asset="'+esc+'">'
       +'<div class="inv-name" style="color:'+a.color+'">'+a.label+'</div>'
