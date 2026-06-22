@@ -777,7 +777,7 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
         <div class="fi-metric"><div class="fi-m-lbl">Colchón líquido</div><div class="fi-m-val" id="fiRun">—</div><div class="fi-m-hint">meses de gastos</div></div>
       </div>
       <div class="fi-coast" id="fiCoast"></div>
-      <div class="fi-assump">Supuestos: gastos US$72k/año · renta histórica US$1.008/mes · retorno real 5% · ahorro US$40k/año</div>
+      <div class="fi-assump">Supuestos: gastos hoy US$72k · libertad US$108k (+50%, hijos a futuro) · renta US$1.008/mes · GreenLat +US$1.167/mes estim. desde 2030 · retorno real 5% · ahorro US$70k/año</div>
     </div>
     <div class="inv-summary">
       <div class="inv-sum-card">
@@ -3127,10 +3127,13 @@ function renderInvSummary(){
   const rs=document.getElementById('invRentaSub');if(rs)rs.textContent=parts.length?parts.join(' · '):'sin renta en el período';
 }
 // ── LIBERTAD FINANCIERA (FIRE) ────────────────────────────────
-const FI_EXPENSES_Y=72000;   // gastos anuales USD (fijo+variable+extraordinarios)
-const FI_RENTA_M=1008;       // renta pasiva recurrente prom/mes (Airbnb+QUEM+Pots, histórico)
-const FI_RETURN_REAL=0.05;   // retorno real esperado anual
-const FI_SAVINGS_Y=40000;    // ahorro anual USD
+const FI_EXPENSES_NOW=72000;      // gastos anuales actuales USD (para cobertura y colchón)
+const FI_EXPENSES_FREEDOM=108000; // gasto objetivo de libertad: +50% (hijos a futuro) → define el número FI
+const FI_RENTA_M=1008;            // renta pasiva recurrente prom/mes (Airbnb+QUEM+Pots, histórico)
+const FI_RETURN_REAL=0.05;        // retorno real esperado anual
+const FI_SAVINGS_Y=70000;         // ahorro anual objetivo USD
+const FI_GREENLAT_M=Math.round(70000*0.20/12); // GreenLat: 20% de US$70k, estimado desde 2030
+const FI_GREENLAT_YEAR=2030;
 const FI_DOB='1993-08-10';
 let fiRate=0.035;            // tasa de retiro segura (default conservador para retiro temprano)
 function fiAge(){const d=new Date(FI_DOB+'T00:00:00'),n=new Date();let a=n.getFullYear()-d.getFullYear();if(n.getMonth()<d.getMonth()||(n.getMonth()===d.getMonth()&&n.getDate()<d.getDate()))a--;return a;}
@@ -3146,20 +3149,21 @@ function fiFmtMM(n){return n>=1e6?('US$ '+(n/1e6).toFixed(2)+'M'):('US$ '+Math.r
 function renderFiSection(){
   if(!document.getElementById('fiProgPct'))return;
   const{net,liq}=fiNetWorth();
-  const fiNum=FI_EXPENSES_Y/fiRate;
+  const fiNum=FI_EXPENSES_FREEDOM/fiRate;
   const prog=fiNum>0?net/fiNum*100:0;
   document.getElementById('fiProgPct').textContent=Math.round(prog)+'%';
   document.getElementById('fiProgFill').style.width=Math.min(100,Math.max(2,prog))+'%';
   document.getElementById('fiNet').textContent=fiFmtMM(net);
   document.getElementById('fiNum').textContent=fiFmtMM(fiNum);
-  document.getElementById('fiCov').textContent=Math.round(FI_RENTA_M*12/FI_EXPENSES_Y*100)+'%';
+  document.getElementById('fiCov').textContent=Math.round(FI_RENTA_M*12/FI_EXPENSES_NOW*100)+'%';
   const yrs=fiYearsTo(net,fiNum,FI_RETURN_REAL,FI_SAVINGS_Y),age=fiAge();
   document.getElementById('fiYears').textContent='~'+yrs;
   document.getElementById('fiYearsAge').textContent='a los ~'+(age+yrs)+' años';
-  document.getElementById('fiRun').textContent=Math.round(liq/(FI_EXPENSES_Y/12))+' m';
+  document.getElementById('fiRun').textContent=Math.round(liq/(FI_EXPENSES_NOW/12))+' m';
   const coastN=(net>0&&net<fiNum)?Math.ceil(Math.log(fiNum/net)/Math.log(1+FI_RETURN_REAL)):0;
+  const covFut=Math.round((FI_RENTA_M+FI_GREENLAT_M)*12/FI_EXPENSES_NOW*100);
   const coastEl=document.getElementById('fiCoast');
-  if(coastEl)coastEl.innerHTML='<strong>Coast FIRE:</strong> sin aportar un peso más, tu patrimonio llega a tu número FI cerca de los <strong>'+(age+coastN)+'</strong> años. Lo que ahorrás hoy compra retiro anticipado (~'+(age+yrs)+').';
+  if(coastEl)coastEl.innerHTML='<strong>Coast FIRE:</strong> sin aportar más, tu patrimonio llega a tu número FI cerca de los <strong>'+(age+coastN)+'</strong> años; con tu ahorro objetivo (~US$70k/año) lo adelantás a los <strong>~'+(age+yrs)+'</strong>. Desde '+FI_GREENLAT_YEAR+', GreenLat sumaría ~US$'+FI_GREENLAT_M.toLocaleString('en-US')+'/mes (estimado) → cobertura ~'+covFut+'%.';
   document.querySelectorAll('#fiRateBtns button').forEach(b=>b.classList.toggle('active',parseFloat(b.dataset.rate)===fiRate));
 }
 function assetValuations(asset){
