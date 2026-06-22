@@ -108,6 +108,30 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .inv-stale{display:inline-block;margin-top:5px;font-size:10.5px;font-weight:600;color:var(--amber);background:var(--amber-bg);border-radius:6px;padding:2px 7px;cursor:pointer;}
 .inv-stale:hover{filter:brightness(.97);}
 .inv-rtag{font-size:9.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;background:var(--surface2);border-radius:4px;padding:1px 5px;vertical-align:middle;}
+.fi-section{background:var(--surface2);border-radius:14px;padding:16px 16px 14px;margin-bottom:18px;}
+.fi-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;gap:10px;}
+.fi-title{font-size:15px;font-weight:700;color:var(--text);}
+.fi-sub{font-size:11.5px;color:var(--text3);margin-top:1px;}
+.fi-rate{display:flex;gap:4px;flex-shrink:0;}
+.fi-rate button{border:1px solid var(--border);background:var(--surface);border-radius:7px;font-size:11px;font-weight:600;padding:3px 8px;cursor:pointer;color:var(--text2);font-family:'DM Sans',sans-serif;}
+.fi-rate button.active{background:var(--primary);color:#fff;border-color:var(--primary);}
+.fi-prog{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 13px;margin-bottom:11px;}
+.fi-prog-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px;font-size:12.5px;color:var(--text2);}
+.fi-prog-pct{font-size:20px;font-weight:700;color:var(--text);font-family:'DM Mono',monospace;}
+.fi-track{height:11px;background:var(--bg);border-radius:99px;overflow:hidden;}
+.fi-fill{height:100%;background:var(--green);border-radius:99px;transition:width .3s;}
+.fi-prog-bot{display:flex;justify-content:space-between;margin-top:6px;font-family:'DM Mono',monospace;font-size:12.5px;}
+.fi-prog-bot span:first-child{color:var(--text);font-weight:600;}
+.fi-prog-bot span:last-child{color:var(--text3);}
+.fi-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:11px;}
+.fi-metric{background:var(--surface);border-radius:9px;padding:9px 11px;}
+.fi-m-lbl{font-size:11px;color:var(--text2);margin-bottom:3px;}
+.fi-m-val{font-size:19px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text);}
+.fi-m-val.warn{color:var(--amber);} .fi-m-val.pos{color:var(--green);}
+.fi-m-hint{font-size:10px;color:var(--text3);margin-top:1px;}
+.fi-coast{font-size:12px;color:var(--green);background:var(--green-bg);border-radius:9px;padding:9px 11px;line-height:1.45;}
+.fi-assump{font-size:10.5px;color:var(--text3);margin-top:9px;text-align:center;line-height:1.4;}
+@media(max-width:520px){.fi-metrics{grid-template-columns:repeat(2,1fr);}}
 .inv-invested{color:var(--text3);}
 .inv-tir{font-size:12px;font-family:'DM Mono',monospace;margin-top:5px;color:var(--text3);}
 .inv-tir .pos{color:var(--green);} .inv-tir .neg{color:var(--red);}
@@ -736,6 +760,25 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
   <!-- TAB: INVESTMENTS -->
   <div class="tab-panel" id="tab-investments">
     <div class="inv-intro">Tus <strong>activos productivos</strong>. Usá el selector de mes de arriba para ver y editar la valuación de cada uno (se refleja en Net Worth). La <strong>variación</strong>, la <strong>renta</strong> y el rendimiento de cada card se miden sobre el período que elijas abajo.</div>
+    <div class="fi-section">
+      <div class="fi-head">
+        <div><div class="fi-title">Libertad financiera</div><div class="fi-sub">Cuando tu renta pasiva cubre tus gastos</div></div>
+        <div class="fi-rate" id="fiRateBtns"><button data-rate="0.035">3,5%</button><button data-rate="0.039">3,9%</button><button data-rate="0.04">4%</button></div>
+      </div>
+      <div class="fi-prog">
+        <div class="fi-prog-top"><span>Progreso a tu número FI</span><span class="fi-prog-pct" id="fiProgPct">—</span></div>
+        <div class="fi-track"><div class="fi-fill" id="fiProgFill"></div></div>
+        <div class="fi-prog-bot"><span id="fiNet">—</span><span id="fiNum">—</span></div>
+      </div>
+      <div class="fi-metrics">
+        <div class="fi-metric"><div class="fi-m-lbl">Cobertura de gastos</div><div class="fi-m-val warn" id="fiCov">—</div><div class="fi-m-hint">renta / gastos</div></div>
+        <div class="fi-metric"><div class="fi-m-lbl">Años a FI</div><div class="fi-m-val" id="fiYears">—</div><div class="fi-m-hint" id="fiYearsAge"></div></div>
+        <div class="fi-metric"><div class="fi-m-lbl">Tasa de ahorro</div><div class="fi-m-val pos" id="fiSav">37%</div><div class="fi-m-hint">meta 40%</div></div>
+        <div class="fi-metric"><div class="fi-m-lbl">Colchón líquido</div><div class="fi-m-val" id="fiRun">—</div><div class="fi-m-hint">meses de gastos</div></div>
+      </div>
+      <div class="fi-coast" id="fiCoast"></div>
+      <div class="fi-assump">Supuestos: gastos US$72k/año · renta histórica US$1.008/mes · retorno real 5% · ahorro US$40k/año</div>
+    </div>
     <div class="inv-summary">
       <div class="inv-sum-card">
         <div class="inv-sum-lbl">Total Productive Assets</div>
@@ -3083,6 +3126,42 @@ function renderInvSummary(){
   const parts=[];if(r.byc.Airbnb)parts.push('Airbnb '+fmtUSD0(r.byc.Airbnb));if(r.byc.Littio)parts.push('Pots '+fmtUSD0(r.byc.Littio));if(r.byc.QUEM)parts.push('QUEM '+fmtUSD0(r.byc.QUEM));
   const rs=document.getElementById('invRentaSub');if(rs)rs.textContent=parts.length?parts.join(' · '):'sin renta en el período';
 }
+// ── LIBERTAD FINANCIERA (FIRE) ────────────────────────────────
+const FI_EXPENSES_Y=72000;   // gastos anuales USD (fijo+variable+extraordinarios)
+const FI_RENTA_M=1008;       // renta pasiva recurrente prom/mes (Airbnb+QUEM+Pots, histórico)
+const FI_RETURN_REAL=0.05;   // retorno real esperado anual
+const FI_SAVINGS_Y=40000;    // ahorro anual USD
+const FI_DOB='1993-08-10';
+let fiRate=0.035;            // tasa de retiro segura (default conservador para retiro temprano)
+function fiAge(){const d=new Date(FI_DOB+'T00:00:00'),n=new Date();let a=n.getFullYear()-d.getFullYear();if(n.getMonth()<d.getMonth()||(n.getMonth()===d.getMonth()&&n.getDate()<d.getDate()))a--;return a;}
+function fiNetWorth(){
+  const latest={};
+  (sbNwRows||[]).forEach(r=>{const k=r.item_name,mo=String(r.month_year).slice(0,7);if(!latest[k]||mo>latest[k].mo)latest[k]={mo,v:parseFloat(r.amount_usd)||0,cat:r.category};});
+  let act=0,pas=0,liq=0;
+  Object.values(latest).forEach(o=>{if(o.cat==='pasivos')pas+=o.v;else{act+=o.v;if(o.cat==='liquido')liq+=o.v;}});
+  return{net:act-pas,liq};
+}
+function fiYearsTo(net,fiNum,r,sav){if(net>=fiNum)return 0;let bal=net;for(let n=1;n<=80;n++){bal=bal*(1+r)+sav;if(bal>=fiNum)return n;}return 80;}
+function fiFmtMM(n){return n>=1e6?('US$ '+(n/1e6).toFixed(2)+'M'):('US$ '+Math.round(n/1000)+'k');}
+function renderFiSection(){
+  if(!document.getElementById('fiProgPct'))return;
+  const{net,liq}=fiNetWorth();
+  const fiNum=FI_EXPENSES_Y/fiRate;
+  const prog=fiNum>0?net/fiNum*100:0;
+  document.getElementById('fiProgPct').textContent=Math.round(prog)+'%';
+  document.getElementById('fiProgFill').style.width=Math.min(100,Math.max(2,prog))+'%';
+  document.getElementById('fiNet').textContent=fiFmtMM(net);
+  document.getElementById('fiNum').textContent=fiFmtMM(fiNum);
+  document.getElementById('fiCov').textContent=Math.round(FI_RENTA_M*12/FI_EXPENSES_Y*100)+'%';
+  const yrs=fiYearsTo(net,fiNum,FI_RETURN_REAL,FI_SAVINGS_Y),age=fiAge();
+  document.getElementById('fiYears').textContent='~'+yrs;
+  document.getElementById('fiYearsAge').textContent='a los ~'+(age+yrs)+' años';
+  document.getElementById('fiRun').textContent=Math.round(liq/(FI_EXPENSES_Y/12))+' m';
+  const coastN=(net>0&&net<fiNum)?Math.ceil(Math.log(fiNum/net)/Math.log(1+FI_RETURN_REAL)):0;
+  const coastEl=document.getElementById('fiCoast');
+  if(coastEl)coastEl.innerHTML='<strong>Coast FIRE:</strong> sin aportar un peso más, tu patrimonio llega a tu número FI cerca de los <strong>'+(age+coastN)+'</strong> años. Lo que ahorrás hoy compra retiro anticipado (~'+(age+yrs)+').';
+  document.querySelectorAll('#fiRateBtns button').forEach(b=>b.classList.toggle('active',parseFloat(b.dataset.rate)===fiRate));
+}
 function assetValuations(asset){
   return sbNwRows.filter(r=>r.item_name===asset)
     .map(r=>({month:String(r.month_year).slice(0,7),date:new Date(String(r.month_year).slice(0,10)+'T00:00:00'),value:parseFloat(r.amount_usd)||0}))
@@ -3125,6 +3204,7 @@ function renderInvestments(){
   invMonth=months[curIdx]||invMonth;
   if(!invMonth)return;
   renderInvSummary();
+  renderFiSection();
   wrap.innerHTML=PRODUCTIVE_ASSETS.map(a=>{
     const m=assetMetricsRange(a.name);
     const exact=invExactValuation(a.name,invMonth);
@@ -3264,6 +3344,7 @@ window.openAssetDetail=openAssetDetail;
 document.querySelectorAll('#invPeriodBtns button').forEach(b=>{b.onclick=()=>{invPeriod=b.dataset.invr;document.querySelectorAll('#invPeriodBtns button').forEach(x=>x.classList.toggle('active',x===b));renderInvestments();};});
 (function(){const d=document.querySelector('#invPeriodBtns button[data-invr="3"]');if(d)d.classList.add('active');})();
 const invVTbtn=document.getElementById('invVarToggle');if(invVTbtn)invVTbtn.onclick=()=>{invVarMode=invVarMode==='money'?'pct':'money';renderInvSummary();};
+document.querySelectorAll('#fiRateBtns button').forEach(b=>{b.onclick=()=>{fiRate=parseFloat(b.dataset.rate);renderFiSection();};});
 // ── NAV ───────────────────────────────────────────────────────
 document.getElementById('toggleBudgets').onclick=function(){
   const el=document.getElementById('budgetEditor');
