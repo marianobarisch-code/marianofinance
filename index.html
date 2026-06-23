@@ -141,7 +141,22 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .fi-stage-arrow{display:flex;align-items:center;color:var(--text3);font-size:13px;}
 .fi-coast{font-size:12px;color:var(--green);background:var(--green-bg);border-radius:9px;padding:9px 11px;line-height:1.45;}
 .fi-assump{font-size:10.5px;color:var(--text3);margin-top:9px;text-align:center;line-height:1.4;}
-@media(max-width:520px){.fi-metrics{grid-template-columns:repeat(2,1fr);}}
+.fi-sim{margin-top:13px;border-top:1px solid var(--border);padding-top:13px;}
+.fi-sim-head{font-size:13px;font-weight:700;color:var(--text);margin-bottom:3px;}
+.fi-sim-sub{font-size:11px;color:var(--text3);margin-bottom:10px;}
+.fi-sim-chart{position:relative;height:230px;}
+.fi-sim-cross{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 4px;}
+.fi-cross-pill{flex:1;min-width:140px;background:var(--surface);border-radius:9px;padding:8px 10px;border-left:3px solid var(--green);}
+.fi-cross-pill.safe{border-left-color:var(--primary);}
+.fi-cross-lbl{font-size:10.5px;color:var(--text2);}
+.fi-cross-val{font-size:14px;font-weight:700;color:var(--text);font-family:'DM Mono',monospace;margin-top:1px;}
+.fi-cross-val.none{color:var(--text3);font-size:12px;font-weight:600;}
+.fi-sim-ctrls{display:grid;grid-template-columns:1fr 1fr;gap:9px 14px;margin-top:11px;}
+.fi-ctrl label{display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:4px;}
+.fi-ctrl label b{color:var(--primary-dark);font-family:'DM Mono',monospace;}
+.fi-ctrl input[type=range]{width:100%;accent-color:var(--primary);cursor:pointer;}
+.fi-ctrl select{width:100%;font-size:11.5px;padding:3px 6px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text);font-family:'DM Sans',sans-serif;}
+@media(max-width:520px){.fi-metrics{grid-template-columns:repeat(2,1fr);}.fi-sim-ctrls{grid-template-columns:1fr;}}
 .inv-invested{color:var(--text3);}
 .inv-tir{font-size:12px;font-family:'DM Mono',monospace;margin-top:5px;color:var(--text3);}
 .inv-tir .pos{color:var(--green);} .inv-tir .neg{color:var(--red);}
@@ -792,6 +807,18 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
       </div>
       <div class="fi-coast" id="fiCoast"></div>
       <div class="fi-assump">Supuestos: gastos hoy US$72k · libertad US$108k (+50%, hijos a futuro) · renta pasiva en vivo (prom. 12m real) · GreenLat +US$1.167/mes estim. desde 2030 · retorno real 5% · ahorro US$70k/año</div>
+      <div class="fi-sim">
+        <div class="fi-sim-head">Simulador · proyección a 40 años</div>
+        <div class="fi-sim-sub">Movés los controles y ves cuándo tu renta cubre tus gastos. La plata no se toca: vivís de lo que rinde.</div>
+        <div class="fi-sim-chart"><canvas id="fiSimChart"></canvas></div>
+        <div class="fi-sim-cross" id="fiSimCross"></div>
+        <div class="fi-sim-ctrls">
+          <div class="fi-ctrl"><label>Retorno anual real <b id="fiSimRetVal">5%</b></label><input type="range" id="fiSimRet" min="0" max="15" step="0.5" value="5"></div>
+          <div class="fi-ctrl"><label>Aporte anual <b id="fiSimSavVal">US$70k</b></label><input type="range" id="fiSimSav" min="0" max="200" step="5" value="70"></div>
+          <div class="fi-ctrl"><label>Capital extra a productivos <b id="fiSimLumpVal">US$0</b></label><input type="range" id="fiSimLump" min="0" max="300" step="10" value="0"></div>
+          <div class="fi-ctrl"><label>¿Cuándo entra ese extra?</label><select id="fiSimLumpYr"><option value="0">Ahora</option><option value="2">En 2 años</option><option value="5">En 5 años</option><option value="10">En 10 años</option></select></div>
+        </div>
+      </div>
     </div>
     <div class="inv-summary">
       <div class="inv-sum-card">
@@ -3167,6 +3194,7 @@ const FI_GREENLAT_M=Math.round(70000*0.20/12); // GreenLat: 20% de US$70k, estim
 const FI_GREENLAT_YEAR=2030;
 const FI_DOB='1993-08-10';
 let fiRate=0.035;            // tasa de retiro segura (default conservador para retiro temprano)
+let fiSimRet=0.05,fiSimSav=70000,fiSimLump=0,fiSimLumpYr=0; // estado del simulador
 function fiAge(){const d=new Date(FI_DOB+'T00:00:00'),n=new Date();let a=n.getFullYear()-d.getFullYear();if(n.getMonth()<d.getMonth()||(n.getMonth()===d.getMonth()&&n.getDate()<d.getDate()))a--;return a;}
 function fiNetWorth(){
   const latest={};
@@ -3251,6 +3279,59 @@ function renderFiSection(){
   const asEl=document.querySelector('.fi-assump');
   if(asEl)asEl.textContent='Gastos en vivo (prom. 12m): US$'+Math.round(gastosNow/1000)+'k/año · libertad US$'+Math.round(freedomExp/1000)+'k (escalera +25%/+25%) · renta y tasa de ahorro en vivo · GreenLat +US$'+FI_GREENLAT_M.toLocaleString('en-US')+'/mes desde '+FI_GREENLAT_YEAR+' · retorno real 5% y ahorro US$70k/año (supuestos)';
   document.querySelectorAll('#fiRateBtns button').forEach(b=>b.classList.toggle('active',parseFloat(b.dataset.rate)===fiRate));
+  renderFiSim();
+}
+// Simulador FIRE: proyecta capital, renta generada y gasto año a año; marca los dos puntos de equilibrio.
+function fiSimProject(){
+  const baseExp=fiExpensesNowAnnual();
+  const{net}=fiNetWorth();
+  const ageNow=fiAge(),y0=new Date().getFullYear(),N=40;
+  const labels=[],capital=[],renta=[],gasto=[],fiSafe=[];
+  let cap=net,crossR=null,crossF=null;
+  for(let n=0;n<=N;n++){
+    if(n===fiSimLumpYr)cap+=fiSimLump;                 // inyección de capital extra al inicio del año elegido
+    const mult=n<2?1:(n<7?1.25:1.5625);               // escalera de gasto de libertad
+    const g=baseExp*mult, rentaY=cap*fiSimRet, fiNum=g/fiRate;
+    labels.push(String(y0+n));capital.push(Math.round(cap));renta.push(Math.round(rentaY));gasto.push(Math.round(g));fiSafe.push(Math.round(fiNum));
+    if(crossR===null&&rentaY>=g)crossR={n,age:ageNow+n,year:y0+n};
+    if(crossF===null&&cap>=fiNum)crossF={n,age:ageNow+n,year:y0+n};
+    cap=cap*(1+fiSimRet)+fiSimSav;                     // crecimiento + aporte para el próximo año
+  }
+  return{labels,capital,renta,gasto,fiSafe,crossR,crossF,ageNow,y0};
+}
+function renderFiSim(){
+  const cv=document.getElementById('fiSimChart');if(!cv||typeof Chart==='undefined')return;
+  const p=fiSimProject();
+  destroyChart('fiSim');
+  const crX=p.crossR?p.crossR.n:-1, cfX=p.crossF?p.crossF.n:-1;
+  charts.fiSim=new Chart(cv,{
+    type:'line',
+    data:{labels:p.labels,datasets:[
+      {label:'Renta anual generada',data:p.renta,yAxisID:'yFlow',borderColor:'#1a7a52',backgroundColor:'rgba(26,122,82,.10)',fill:true,tension:.25,borderWidth:2,
+       pointRadius:p.renta.map((_,i)=>i===crX?7:0),pointBackgroundColor:'#1a7a52',pointBorderColor:'#fff',pointBorderWidth:2,pointHoverRadius:6},
+      {label:'Gasto anual',data:p.gasto,yAxisID:'yFlow',borderColor:'#c0392b',borderWidth:2,borderDash:[5,4],pointRadius:0,tension:.1,fill:false},
+      {label:'Capital total',data:p.capital,yAxisID:'yCap',borderColor:'#5E72EB',backgroundColor:'rgba(94,114,235,.06)',fill:false,tension:.25,borderWidth:2,
+       pointRadius:p.capital.map((_,i)=>i===cfX?6:0),pointBackgroundColor:'#5E72EB',pointBorderColor:'#fff',pointBorderWidth:2,pointHoverRadius:6},
+      {label:'Número FI seguro (SWR)',data:p.fiSafe,yAxisID:'yCap',borderColor:'rgba(31,47,152,.35)',borderWidth:1.5,borderDash:[2,3],pointRadius:0,tension:.1,fill:false}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:true,labels:{boxWidth:10,boxHeight:10,font:{size:10},usePointStyle:true,padding:8}},
+        tooltip:{callbacks:{title:items=>'Año '+items[0].label+' · '+(p.ageNow+items[0].dataIndex)+' años',
+          label:ctx=>{const v=ctx.raw;let s=' '+ctx.dataset.label+': '+fmtShortUSD(v);if(ctx.datasetIndex===0)s+=' ('+fmtShortUSD(v/12)+'/mes)';return s;}}}},
+      scales:{
+        x:{ticks:{font:{size:9},maxTicksLimit:9,callback:function(val,i){return i%5===0?this.getLabelForValue(val):'';}},grid:{display:false},border:{display:false}},
+        yFlow:{position:'left',grace:'8%',title:{display:true,text:'Flujo anual',font:{size:9},color:'#888'},ticks:{font:{size:9},maxTicksLimit:6,callback:v=>fmtShortUSD(v)},grid:{color:'rgba(0,0,0,.05)'},border:{display:false}},
+        yCap:{position:'right',grace:'8%',title:{display:true,text:'Capital',font:{size:9},color:'#888'},ticks:{font:{size:9},maxTicksLimit:6,callback:v=>v>=1e6?'$'+(v/1e6).toFixed(1)+'M':fmtShortUSD(v)},grid:{display:false},border:{display:false}}
+      }
+    }
+  });
+  const cross=document.getElementById('fiSimCross');
+  if(cross){
+    const r=p.crossR?('<div class="fi-cross-val">'+p.crossR.year+' · '+p.crossR.age+' años</div>'):'<div class="fi-cross-val none">no llega en 40 años</div>';
+    const f=p.crossF?('<div class="fi-cross-val">'+p.crossF.year+' · '+p.crossF.age+' años</div>'):'<div class="fi-cross-val none">no llega en 40 años</div>';
+    cross.innerHTML='<div class="fi-cross-pill"><div class="fi-cross-lbl">⭐ Vivís de la renta (renta ≥ gasto)</div>'+r+'</div>'+
+                    '<div class="fi-cross-pill safe"><div class="fi-cross-lbl">🛡️ FI seguro (capital ≥ gasto÷'+(fiRate*100).toFixed(1).replace('.',',')+'%)</div>'+f+'</div>';
+  }
 }
 function nwLabelToKey(lbl){
   const m=String(lbl||'').trim().toLowerCase().match(/^([a-z]+)\.?\s+(\d{2})$/);
@@ -3491,6 +3572,13 @@ document.querySelectorAll('#invPeriodBtns button').forEach(b=>{b.onclick=()=>{in
 (function(){const d=document.querySelector('#invPeriodBtns button[data-invr="3"]');if(d)d.classList.add('active');})();
 const invVTbtn=document.getElementById('invVarToggle');if(invVTbtn)invVTbtn.onclick=()=>{invVarMode=invVarMode==='money'?'pct':'money';renderInvSummary();};
 document.querySelectorAll('#fiRateBtns button').forEach(b=>{b.onclick=()=>{fiRate=parseFloat(b.dataset.rate);renderFiSection();};});
+(function(){
+  const ret=document.getElementById('fiSimRet'),sav=document.getElementById('fiSimSav'),lump=document.getElementById('fiSimLump'),lyr=document.getElementById('fiSimLumpYr');
+  if(ret)ret.oninput=()=>{fiSimRet=parseFloat(ret.value)/100;document.getElementById('fiSimRetVal').textContent=ret.value.replace('.',',')+'%';renderFiSim();};
+  if(sav)sav.oninput=()=>{fiSimSav=parseFloat(sav.value)*1000;document.getElementById('fiSimSavVal').textContent='US$'+sav.value+'k';renderFiSim();};
+  if(lump)lump.oninput=()=>{fiSimLump=parseFloat(lump.value)*1000;document.getElementById('fiSimLumpVal').textContent='US$'+lump.value+'k';renderFiSim();};
+  if(lyr)lyr.onchange=()=>{fiSimLumpYr=parseInt(lyr.value);renderFiSim();};
+})();
 // ── NAV ───────────────────────────────────────────────────────
 document.getElementById('toggleBudgets').onclick=function(){
   const el=document.getElementById('budgetEditor');
