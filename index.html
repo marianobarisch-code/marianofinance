@@ -127,8 +127,18 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .fi-metric{background:var(--surface);border-radius:9px;padding:9px 11px;}
 .fi-m-lbl{font-size:11px;color:var(--text2);margin-bottom:3px;}
 .fi-m-val{font-size:19px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text);}
-.fi-m-val.warn{color:var(--amber);} .fi-m-val.pos{color:var(--green);}
+.fi-m-val.warn{color:var(--amber);} .fi-m-val.pos{color:var(--green);} .fi-m-val.neg{color:var(--red);}
 .fi-m-hint{font-size:10px;color:var(--text3);margin-top:1px;}
+.fi-stages-wrap{margin-bottom:11px;}
+.fi-stages-lbl{font-size:11px;color:var(--text2);margin-bottom:6px;}
+.fi-stages{display:flex;align-items:stretch;gap:5px;}
+.fi-stage{flex:1;background:var(--surface);border-radius:9px;padding:8px 5px;text-align:center;}
+.fi-stage.last{background:var(--primary-bg);border:1px solid var(--primary);}
+.fi-stage-yr{font-size:10.5px;color:var(--text3);}
+.fi-stage-val{font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text);margin:2px 0;}
+.fi-stage-x{font-size:10px;color:var(--text3);}
+.fi-stage.last .fi-stage-x{color:var(--primary);font-weight:600;}
+.fi-stage-arrow{display:flex;align-items:center;color:var(--text3);font-size:13px;}
 .fi-coast{font-size:12px;color:var(--green);background:var(--green-bg);border-radius:9px;padding:9px 11px;line-height:1.45;}
 .fi-assump{font-size:10.5px;color:var(--text3);margin-top:9px;text-align:center;line-height:1.4;}
 @media(max-width:520px){.fi-metrics{grid-template-columns:repeat(2,1fr);}}
@@ -773,8 +783,12 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
       <div class="fi-metrics">
         <div class="fi-metric"><div class="fi-m-lbl">Cobertura de gastos</div><div class="fi-m-val warn" id="fiCov">—</div><div class="fi-m-hint" id="fiCovHint">renta / gastos</div></div>
         <div class="fi-metric"><div class="fi-m-lbl">Años a FI</div><div class="fi-m-val" id="fiYears">—</div><div class="fi-m-hint" id="fiYearsAge"></div></div>
-        <div class="fi-metric"><div class="fi-m-lbl">Tasa de ahorro</div><div class="fi-m-val pos" id="fiSav">37%</div><div class="fi-m-hint">meta 40%</div></div>
+        <div class="fi-metric"><div class="fi-m-lbl">Tasa de ahorro</div><div class="fi-m-val" id="fiSav">—</div><div class="fi-m-hint">meta 40%</div></div>
         <div class="fi-metric"><div class="fi-m-lbl">Colchón líquido</div><div class="fi-m-val" id="fiRun">—</div><div class="fi-m-hint">meses de gastos</div></div>
+      </div>
+      <div class="fi-stages-wrap">
+        <div class="fi-stages-lbl">Escalera de gasto de libertad <span style="color:var(--text3)">· el tramo final define tu número FI</span></div>
+        <div class="fi-stages" id="fiStages"></div>
       </div>
       <div class="fi-coast" id="fiCoast"></div>
       <div class="fi-assump">Supuestos: gastos hoy US$72k · libertad US$108k (+50%, hijos a futuro) · renta pasiva en vivo (prom. 12m real) · GreenLat +US$1.167/mes estim. desde 2030 · retorno real 5% · ahorro US$70k/año</div>
@@ -3144,9 +3158,9 @@ function renderInvSummary(){
   const rs=document.getElementById('invRentaSub');if(rs)rs.textContent=parts.length?parts.join(' · '):'sin renta en el período';
 }
 // ── LIBERTAD FINANCIERA (FIRE) ────────────────────────────────
-const FI_EXPENSES_NOW=72000;      // gastos anuales actuales USD (para cobertura y colchón)
-const FI_EXPENSES_FREEDOM=108000; // gasto objetivo de libertad: +50% (hijos a futuro) → define el número FI
-const FI_RENTA_M=1008;            // renta pasiva recurrente prom/mes (Airbnb+QUEM+Pots, histórico)
+const FI_EXPENSES_NOW=72000;      // fallback: gastos anuales si todavía no hay datos en vivo
+const FI_RAMP=[{from:0,mult:1},{from:2,mult:1.25},{from:7,mult:1.5625}]; // escalera de gasto de libertad (compuesta +25%/+25%)
+const FI_RENTA_M=1008;            // fallback: renta pasiva recurrente prom/mes si no hay datos en vivo
 const FI_RETURN_REAL=0.05;        // retorno real esperado anual
 const FI_SAVINGS_Y=70000;         // ahorro anual objetivo USD
 const FI_GREENLAT_M=Math.round(70000*0.20/12); // GreenLat: 20% de US$70k, estimado desde 2030
@@ -3174,26 +3188,68 @@ function fiRentaTrailing(){
   const last=arr.slice(-12);
   return last.reduce((s,e)=>s+e.v,0)/last.length;
 }
+// Gasto anual actual EN VIVO: promedio de los últimos 12 meses de "Egresos" reales (alquiler+fijos+variables+extraordinarios) × 12.
+function fiExpensesNowAnnual(){
+  const row=(typeof balData!=='undefined'&&balData.rowMap&&balData.rowMap['Egresos'])||null;
+  if(!row)return FI_EXPENSES_NOW;
+  const arr=[];
+  for(const lbl in row){const k=nwLabelToKey(lbl);if(!k)continue;const v=parseFloat(row[lbl]);if(isFinite(v)&&v>0)arr.push({k,v});}
+  if(!arr.length)return FI_EXPENSES_NOW;
+  arr.sort((a,b)=>a.k<b.k?-1:1);
+  const last=arr.slice(-12);
+  return last.reduce((s,e)=>s+e.v,0)/last.length*12;
+}
+// Tasa de ahorro EN VIVO: (ingreso − egresos) / ingreso sobre los últimos 12 meses reales (ratio de sumas, no promedio de ratios).
+function fiSavingsRate(){
+  const inc=(typeof balData!=='undefined'&&balData.rowMap&&balData.rowMap['Ingreso total'])||null;
+  const exp=(balData.rowMap&&balData.rowMap['Egresos'])||null;
+  if(!inc||!exp)return null;
+  const months=[];
+  for(const lbl in inc){const k=nwLabelToKey(lbl);if(!k)continue;const i=parseFloat(inc[lbl]);if(isFinite(i)&&i>0)months.push({k,lbl,i});}
+  if(!months.length)return null;
+  months.sort((a,b)=>a.k<b.k?-1:1);
+  const last=months.slice(-12);
+  let si=0,se=0;
+  last.forEach(m=>{si+=m.i;se+=(exp[m.lbl]!=null?parseFloat(exp[m.lbl])||0:0);});
+  return si>0?(si-se)/si:null;
+}
+// Escalera de gasto de libertad: 3 tramos compuestos, en años calendario desde hoy.
+function fiExpenseStages(base){
+  const y0=new Date().getFullYear();
+  return FI_RAMP.map((r,i)=>({mult:r.mult,fromYear:y0+r.from,annual:base*r.mult,last:i===FI_RAMP.length-1}));
+}
+function fiFreedomExpense(base){return base*FI_RAMP[FI_RAMP.length-1].mult;}
 function renderFiSection(){
   if(!document.getElementById('fiProgPct'))return;
   const{net,liq}=fiNetWorth();
-  const fiNum=FI_EXPENSES_FREEDOM/fiRate;
+  const gastosNow=fiExpensesNowAnnual();          // gasto anual actual EN VIVO
+  const freedomExp=fiFreedomExpense(gastosNow);   // gasto de libertad = tramo final de la escalera
+  const fiNum=freedomExp/fiRate;
   const prog=fiNum>0?net/fiNum*100:0;
   document.getElementById('fiProgPct').textContent=Math.round(prog)+'%';
   document.getElementById('fiProgFill').style.width=Math.min(100,Math.max(2,prog))+'%';
   document.getElementById('fiNet').textContent=fiFmtMM(net);
   document.getElementById('fiNum').textContent=fiFmtMM(fiNum);
   const renta=fiRentaTrailing();
-  document.getElementById('fiCov').textContent=Math.round(renta*12/FI_EXPENSES_NOW*100)+'%';
+  document.getElementById('fiCov').textContent=Math.round(renta*12/gastosNow*100)+'%';
   const covHint=document.getElementById('fiCovHint');if(covHint)covHint.textContent='US$'+Math.round(renta).toLocaleString('en-US')+'/mes · prom. 12m';
   const yrs=fiYearsTo(net,fiNum,FI_RETURN_REAL,FI_SAVINGS_Y),age=fiAge();
   document.getElementById('fiYears').textContent='~'+yrs;
   document.getElementById('fiYearsAge').textContent='a los ~'+(age+yrs)+' años';
-  document.getElementById('fiRun').textContent=Math.round(liq/(FI_EXPENSES_NOW/12))+' m';
+  // Tasa de ahorro EN VIVO
+  const sav=fiSavingsRate(),savEl=document.getElementById('fiSav');
+  if(savEl){if(sav==null){savEl.textContent='—';savEl.className='fi-m-val';}else{savEl.textContent=Math.round(sav*100)+'%';savEl.className='fi-m-val '+(sav>=0.3?'pos':(sav>=0?'warn':'neg'));}}
+  document.getElementById('fiRun').textContent=Math.round(liq/(gastosNow/12))+' m';
   const coastN=(net>0&&net<fiNum)?Math.ceil(Math.log(fiNum/net)/Math.log(1+FI_RETURN_REAL)):0;
-  const covFut=Math.round((renta+FI_GREENLAT_M)*12/FI_EXPENSES_NOW*100);
+  const covFut=Math.round((renta+FI_GREENLAT_M)*12/gastosNow*100);
   const coastEl=document.getElementById('fiCoast');
   if(coastEl)coastEl.innerHTML='<strong>Coast FIRE:</strong> sin aportar más, tu patrimonio llega a tu número FI cerca de los <strong>'+(age+coastN)+'</strong> años; con tu ahorro objetivo (~US$70k/año) lo adelantás a los <strong>~'+(age+yrs)+'</strong>. Desde '+FI_GREENLAT_YEAR+', GreenLat sumaría ~US$'+FI_GREENLAT_M.toLocaleString('en-US')+'/mes (estimado) → cobertura ~'+covFut+'%.';
+  // Escalera de gasto de libertad
+  const stEl=document.getElementById('fiStages');
+  if(stEl)stEl.innerHTML=fiExpenseStages(gastosNow).map(s=>'<div class="fi-stage'+(s.last?' last':'')+'"><div class="fi-stage-yr">'+s.fromYear+(s.last?'+':'')+'</div><div class="fi-stage-val">US$'+Math.round(s.annual/1000)+'k</div><div class="fi-stage-x">×'+s.mult.toFixed(s.mult%1===0?0:2).replace('.',',')+'</div></div>').join('<div class="fi-stage-arrow">→</div>');
+  // Supuestos en vivo
+  const asEl=document.querySelector('.fi-assump');
+  if(asEl)asEl.textContent='Gastos en vivo (prom. 12m): US$'+Math.round(gastosNow/1000)+'k/año · libertad US$'+Math.round(freedomExp/1000)+'k (escalera +25%/+25%) · renta y tasa de ahorro en vivo · GreenLat +US$'+FI_GREENLAT_M.toLocaleString('en-US')+'/mes desde '+FI_GREENLAT_YEAR+' · retorno real 5% y ahorro US$70k/año (supuestos)';
   document.querySelectorAll('#fiRateBtns button').forEach(b=>b.classList.toggle('active',parseFloat(b.dataset.rate)===fiRate));
 }
 function nwLabelToKey(lbl){
