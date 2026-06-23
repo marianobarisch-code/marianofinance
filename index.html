@@ -1034,7 +1034,7 @@ const CAT_ICONS={'Supermercados':'🛒','Suplementos':'💊','Planes Familia':'�
 const catIcon=c=>CAT_ICONS[c]||'🎲';
 // ===== Income module config =====
 const INCOME_CUTOFF='2026-06-01'; // desde Junio los ingresos se cargan uno por uno en income_entries
-const INCOME_CATEGORIES=['Sueldo','Comisiones Storyly','Passive Income','Referidos'];
+const INCOME_CATEGORIES=['Sueldo','Comisiones Storyly','Referidos'];
 const INCOME_PASSIVE_SUBCATS=['QUEM','Littio','Airbnb'];
 // Mapea cada categoría de ingreso a su fila en la tabla de Income & Spending
 const INCOME_ROW_MAP={'Sueldo':'Sueldo','Comisiones Storyly':'Comms + Expenses','Passive Income':'Passive Income','Referidos':'Otros'};
@@ -3069,10 +3069,19 @@ function assetMetricsRange(asset){
   const today=new Date();
   const curKey=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');
   const termDate=invMonth>=curKey?today:new Date(invMonth+'-28T00:00:00');
+  const rentaList=assetRentaList(asset);
+  const isRenta=cfg.mode==='renta';
   if(invPeriod==='all'){
     const withdrawn=allFlows.filter(f=>f.type==='retiro').reduce((s,f)=>s+f.amount,0);
     const fees=allFlows.filter(f=>f.type==='fee').reduce((s,f)=>s+f.amount,0);
-    const gain=(cfg.mode==='renta'?withdrawn:((valEnd||0)+withdrawn-lifeInvested))-fees;
+    const rentaAll=rentaList.reduce((s,r)=>s+r.amount,0);
+    if(isRenta){
+      const gain=rentaAll-fees;
+      const months=rentaList.length?(monthSpan(rentaList[0].flow_date.slice(0,7),invMonth)):1;
+      const annual=(valEnd>0&&months>0)?(rentaAll/months*12)/valEnd*100:null;
+      return{mode:cfg.mode,lifeInvested,valEnd,renta:rentaAll,gain,gainPct:valEnd>0?gain/valEnd*100:null,annual,hasFlows:!!(allFlows.length||rentaList.length)};
+    }
+    const gain=((valEnd||0)+withdrawn-lifeInvested)-fees;
     const gainPct=lifeInvested>0?gain/lifeInvested*100:null;
     const cf=allFlows.map(f=>({date:f.date,amount:(f.type==='inyeccion'||f.type==='fee')?-f.amount:f.amount}));
     if(valEnd!=null&&valEnd!==0)cf.push({date:termDate,amount:valEnd});
@@ -3088,8 +3097,15 @@ function assetMetricsRange(asset){
   const inj=win.filter(f=>f.type==='inyeccion').reduce((s,f)=>s+f.amount,0);
   const wdr=win.filter(f=>f.type==='retiro').reduce((s,f)=>s+f.amount,0);
   const fees=win.filter(f=>f.type==='fee').reduce((s,f)=>s+f.amount,0);
-  const gain=(cfg.mode==='renta'?wdr:((valEnd||0)-valStart-(inj-wdr)))-fees;
-  const baseCap=valStart+(cfg.mode==='renta'?0:inj);
+  if(isRenta){
+    const rentaWin=rentaList.filter(r=>{const mo=r.flow_date.slice(0,7);return mo>=injStart&&mo<=invMonth;}).reduce((s,r)=>s+r.amount,0);
+    const gain=rentaWin-fees;
+    const months=monthSpan(injStart,invMonth);
+    const annual=(valEnd>0&&months>0)?(rentaWin/months*12)/valEnd*100:null;
+    return{mode:cfg.mode,lifeInvested,valEnd,renta:rentaWin,gain,gainPct:valEnd>0?gain/valEnd*100:null,annual,hasFlows:!!(allFlows.length||rentaList.length)};
+  }
+  const gain=((valEnd||0)-valStart-(inj-wdr))-fees;
+  const baseCap=valStart+inj;
   const gainPct=baseCap>0?gain/baseCap*100:null;
   const cf=[];
   if(valStart>0)cf.push({date:new Date(baseKey+'-01T00:00:00'),amount:-valStart});
@@ -3098,6 +3114,7 @@ function assetMetricsRange(asset){
   const r=cf.length>=2?xirr(cf):null;
   return{mode:cfg.mode,lifeInvested,valEnd,gain,gainPct,annual:r!=null?r*100:null,hasFlows:!!allFlows.length};
 }
+function monthSpan(startKey,endKey){const[ys,ms]=startKey.split('-').map(Number),[ye,me]=endKey.split('-').map(Number);return (ye-ys)*12+(me-ms)+1;}
 function renderInvSummary(){
   invMonth=months[curIdx]||invMonth;
   if(!invMonth)return;
@@ -3200,6 +3217,14 @@ function assetFlowList(asset){
     .map(f=>({id:f.id,date:new Date(String(f.flow_date).slice(0,10)+'T00:00:00'),flow_date:String(f.flow_date).slice(0,10),amount:parseFloat(f.amount_usd)||0,type:f.flow_type||'inyeccion',note:f.note||''}))
     .sort((a,b)=>a.date-b.date);
 }
+// Activos de renta → subcategoría de Passive Income (income_entries). La renta se carga desde la card y alimenta cobertura + Passive Income & Spending.
+const ASSET_RENTA_SUBCAT={'Inmueble - Depto Libertador':'Airbnb','Préstamo QUEM (Walter y Mati)':'QUEM','Littio (Pots)':'Littio'};
+function assetRentaList(asset){
+  const sc=ASSET_RENTA_SUBCAT[asset];if(!sc)return[];
+  return (incomeRows||[]).filter(r=>r.category==='Passive Income'&&r.subcategory===sc&&r.date)
+    .map(r=>({id:r.id,date:new Date(String(r.date).slice(0,10)+'T00:00:00'),flow_date:String(r.date).slice(0,10),amount:parseFloat(r.amount_usd)||0}))
+    .sort((a,b)=>a.date-b.date);
+}
 function xirr(cf){
   if(cf.length<2)return null;
   const t0=cf[0].date.getTime(),YR=365*24*3600*1000;
@@ -3238,14 +3263,20 @@ function renderInvestments(){
     const shown=invValuationAt(a.name,invMonth);
     const esc=a.name.replace(/"/g,'&quot;');
     let body;
+    const tag=INV_PERIOD_LBL[invPeriod]||'';
     if(!m.hasFlows){
-      body=m.mode==='renta'?'<div class="inv-sub">renta · ver Passive Income</div>':'<div class="inv-sub">sin inyecciones — click para cargar capital</div>';
+      body=m.mode==='renta'?'<div class="inv-sub">sin renta cargada — click para registrar</div>':'<div class="inv-sub">sin inyecciones — click para cargar capital</div>';
+    }else if(m.mode==='renta'){
+      const rTxt='+'+fmtUSD0(m.renta||0);
+      const yTxt=m.annual!=null?('≈'+m.annual.toFixed(1)+'%/año'):'s/d';
+      body='<div class="inv-change inv-invested">renta cobrada <span class="inv-rtag">'+tag+'</span></div>'
+          +'<div class="inv-change"><span class="pos">'+rTxt+'</span></div>'
+          +'<div class="inv-tir">yield <strong class="pos">'+yTxt+'</strong></div>';
     }else{
       const gCls=m.gain>=0?'pos':'neg';
       const gTxt=(m.gain>=0?'+':'−')+fmtUSD0(Math.abs(m.gain));
       const pctTxt=m.gainPct!=null?(' ('+(m.gainPct>=0?'+':'')+Math.round(m.gainPct)+'%)'):'';
       const tirTxt=m.annual!=null?((m.annual>=0?'+':'')+m.annual.toFixed(1)+'%/año'):'s/d';
-      const tag=INV_PERIOD_LBL[invPeriod]||'';
       body='<div class="inv-change inv-invested">invertido '+fmtUSD0(m.lifeInvested)+'</div>'
           +'<div class="inv-change"><span class="'+gCls+'">'+gTxt+pctTxt+'</span> <span class="inv-rtag">'+tag+'</span></div>'
           +'<div class="inv-tir">TIR <strong class="'+gCls+'">'+tirTxt+'</strong></div>';
@@ -3305,8 +3336,17 @@ function openAssetDetail(asset){
   cells.push(['Capital invertido',m.invested?fmtUSD0(m.invested):'—','']);
   if(m.fees)cells.push(['Fees pagados','−'+fmtUSD0(m.fees),'neg']);
   if(m.withdrawn&&!isRenta)cells.push(['Cash cobrado',fmtUSD0(m.withdrawn),'pos']);
-  cells.push([isRenta?'Renta cobrada (rendimiento)':'Rendimiento total',m.flows.length?((m.gain>=0?'+':'−')+fmtUSD0(Math.abs(m.gain))+(m.gainPct!=null?' ('+(m.gainPct>=0?'+':'')+Math.round(m.gainPct)+'%)':'')):'—',m.flows.length?gCls:'']);
-  cells.push(['Rendimiento anual (TIR)',m.annual!=null?((m.annual>=0?'+':'')+m.annual.toFixed(1)+'%/año'):'s/d',m.annual!=null?gCls:'']);
+  if(isRenta){
+    const rentaL=assetRentaList(amCurrentAsset),rentaTot=rentaL.reduce((s,r)=>s+r.amount,0);
+    const nowKey=new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0');
+    const span=rentaL.length?monthSpan(rentaL[0].flow_date.slice(0,7),nowKey):0;
+    const yld=(m.curVal>0&&span>0)?(rentaTot/span*12)/m.curVal*100:null;
+    cells.push(['Renta cobrada (total)',rentaTot>0?('+'+fmtUSD0(rentaTot)):'—',rentaTot>0?'pos':'']);
+    cells.push(['Yield estimado (anual)',yld!=null?('≈'+yld.toFixed(1)+'%/año'):'s/d',yld!=null?'pos':'']);
+  }else{
+    cells.push(['Rendimiento total',m.flows.length?((m.gain>=0?'+':'−')+fmtUSD0(Math.abs(m.gain))+(m.gainPct!=null?' ('+(m.gainPct>=0?'+':'')+Math.round(m.gainPct)+'%)':'')):'—',m.flows.length?gCls:'']);
+    cells.push(['Rendimiento anual (TIR)',m.annual!=null?((m.annual>=0?'+':'')+m.annual.toFixed(1)+'%/año'):'s/d',m.annual!=null?gCls:'']);
+  }
   document.getElementById('amMetrics').innerHTML=cells.map(c=>'<div class="am-metric"><div class="lbl">'+c[0]+'</div><div class="val '+c[2]+'">'+c[1]+'</div></div>').join('');
   const vals=assetValuations(asset);
   if(amChartInst){amChartInst.destroy();amChartInst=null;}
@@ -3320,13 +3360,16 @@ function openAssetDetail(asset){
     });
   }else{chartWrap.style.display='none';}
   const fl=m.flows.slice().reverse();
-  document.getElementById('amFlows').innerHTML=fl.length?fl.map(f=>{
+  const rentaFl=assetRentaList(asset).slice().reverse();
+  let flHtml=fl.map(f=>{
     const isIn=f.type==='inyeccion';
     const lbl=f.type==='inyeccion'?'Inyección':(f.type==='fee'?'Fee / mantenimiento':'Retiro / renta');
     return '<div class="am-flow"><span class="af-date">'+f.flow_date+'</span><span class="af-type">'+lbl+(f.note?' · '+f.note:'')+'</span><span class="af-amt '+(isIn?'in':'out')+'">'+(isIn?'+':'−')+fmtUSD0(f.amount)+'</span><button class="af-del" data-id="'+f.id+'" title="Borrar">🗑</button></div>';
-  }).join(''):'<div style="font-size:12px;color:var(--text3);padding:6px 0;">Todavía no cargaste inyecciones de capital.</div>';
-  document.getElementById('amFlows').querySelectorAll('.af-del').forEach(b=>{b.onclick=()=>deleteAssetFlow(b.getAttribute('data-id'));});
-  document.getElementById('amType').value='inyeccion';
+  }).join('');
+  flHtml+=rentaFl.map(r=>'<div class="am-flow"><span class="af-date">'+r.flow_date+'</span><span class="af-type">Renta cobrada</span><span class="af-amt in">+'+fmtUSD0(r.amount)+'</span><button class="af-del af-renta" data-id="'+r.id+'" title="Borrar">🗑</button></div>').join('');
+  document.getElementById('amFlows').innerHTML=flHtml||'<div style="font-size:12px;color:var(--text3);padding:6px 0;">Todavía no cargaste movimientos.</div>';
+  document.getElementById('amFlows').querySelectorAll('.af-del').forEach(b=>{const id=b.getAttribute('data-id');if(b.classList.contains('af-renta'))b.onclick=()=>deleteRentaEntry(id);else b.onclick=()=>deleteAssetFlow(id);});
+  document.getElementById('amType').value=ASSET_RENTA_SUBCAT[asset]?'retiro':'inyeccion';
   document.getElementById('amAmount').value='';
   document.getElementById('amNote').value='';
   document.getElementById('amError').textContent='';
@@ -3348,7 +3391,18 @@ async function addAssetFlow(){
   if(!date){errEl.textContent='Poné una fecha';return;}
   if(isNaN(amt)||amt<=0){errEl.textContent='Monto inválido (USD > 0)';return;}
   const btn=document.getElementById('amAddBtn');btn.disabled=true;
+  const rentaSub=(type==='retiro')?ASSET_RENTA_SUBCAT[amCurrentAsset]:null;
   try{
+    if(rentaSub){
+      if(date<INCOME_CUTOFF){errEl.textContent='La renta se registra desde '+INCOME_CUTOFF+' (lo anterior ya está en el histórico).';btn.disabled=false;return;}
+      let fx=1450;try{fx=await fetchBlueRate();}catch(_){}
+      const{error}=await sb.from('income_entries').insert({date,category:'Passive Income',subcategory:rentaSub,amount:amt,currency:'USD',ars_per_usd:fx,amount_usd:amt});
+      if(error)throw new Error(error.message);
+      await loadData();
+      renderInvestments();
+      openAssetDetail(amCurrentAsset);
+      return;
+    }
     const{error}=await sb.from('asset_flows').insert({asset_name:amCurrentAsset,flow_date:date,flow_type:type,amount_usd:amt,note:note||null});
     if(error)throw new Error(error.message);
     assetFlows=await fetchAssetFlows();
@@ -3362,6 +3416,15 @@ async function deleteAssetFlow(id){
     const{error}=await sb.from('asset_flows').delete().eq('id',id);
     if(error)throw new Error(error.message);
     assetFlows=await fetchAssetFlows();
+    renderInvestments();
+    if(amCurrentAsset)openAssetDetail(amCurrentAsset);
+  }catch(e){alert('Error al borrar: '+e.message);}
+}
+async function deleteRentaEntry(id){
+  try{
+    const{error}=await sb.from('income_entries').delete().eq('id',id);
+    if(error)throw new Error(error.message);
+    await loadData();
     renderInvestments();
     if(amCurrentAsset)openAssetDetail(amCurrentAsset);
   }catch(e){alert('Error al borrar: '+e.message);}
