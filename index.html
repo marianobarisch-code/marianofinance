@@ -810,15 +810,12 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
       <div class="fi-assump">Supuestos: gastos hoy US$72k · libertad US$108k (+50%, hijos a futuro) · renta pasiva en vivo (prom. 12m real) · GreenLat +US$1.167/mes estim. desde 2030 · retorno real 5% · ahorro US$70k/año</div>
       <div class="fi-sim">
         <div class="fi-sim-head">Simulador · proyección a 40 años</div>
-        <div class="fi-sim-sub">Hasta tu edad de retiro acumulás (aportás + reinvertís); después dejás de aportar y vivís de la renta, y la olla se estabiliza. Movés los controles y ves cuándo tu renta cubre tus gastos.</div>
+        <div class="fi-sim-sub">Acumulás (aportás + reinvertís) hasta que tu renta cubre tus gastos; desde ahí vivís de la renta y la olla se estabiliza. Movés retorno y aporte y ves a qué edad sos libre.</div>
         <div class="fi-sim-chart"><canvas id="fiSimChart"></canvas></div>
         <div class="fi-sim-cross" id="fiSimCross"></div>
         <div class="fi-sim-ctrls">
           <div class="fi-ctrl"><label>Retorno anual real <b id="fiSimRetVal">5%</b></label><input type="range" id="fiSimRet" min="3" max="15" step="0.5" value="5"></div>
-          <div class="fi-ctrl"><label>Aporte anual (mientras trabajás) <b id="fiSimSavVal">US$70k</b></label><input type="range" id="fiSimSav" min="0" max="200" step="5" value="70"></div>
-          <div class="fi-ctrl"><label>Edad de retiro <b id="fiSimRetAgeVal">50</b></label><input type="range" id="fiSimRetAge" min="35" max="75" step="1" value="50"></div>
-          <div class="fi-ctrl"><label>Capital extra a productivos <b id="fiSimLumpVal">US$0</b></label><input type="range" id="fiSimLump" min="0" max="300" step="10" value="0"></div>
-          <div class="fi-ctrl"><label>¿Cuándo entra ese extra?</label><select id="fiSimLumpYr"><option value="0">Ahora</option><option value="2">En 2 años</option><option value="5">En 5 años</option><option value="10">En 10 años</option></select></div>
+          <div class="fi-ctrl"><label>Aporte anual a productivos <b id="fiSimSavVal">US$70k</b></label><input type="range" id="fiSimSav" min="0" max="200" step="5" value="70"></div>
         </div>
       </div>
     </div>
@@ -3196,7 +3193,7 @@ const FI_GREENLAT_M=Math.round(70000*0.20/12); // GreenLat: 20% de US$70k, estim
 const FI_GREENLAT_YEAR=2030;
 const FI_DOB='1993-08-10';
 let fiRate=0.035;            // tasa de retiro segura (default conservador para retiro temprano)
-let fiSimRet=0.05,fiSimSav=70000,fiSimLump=0,fiSimLumpYr=0,fiSimRetAge=50; // estado del simulador
+let fiSimRet=0.05,fiSimSav=70000; // estado del simulador
 function fiAge(){const d=new Date(FI_DOB+'T00:00:00'),n=new Date();let a=n.getFullYear()-d.getFullYear();if(n.getMonth()<d.getMonth()||(n.getMonth()===d.getMonth()&&n.getDate()<d.getDate()))a--;return a;}
 function fiNetWorth(){
   const latest={};
@@ -3289,19 +3286,20 @@ function fiSimProject(){
   const{net}=fiNetWorth();
   const ageNow=fiAge(),y0=new Date().getFullYear(),N=40;
   const labels=[],capital=[],renta=[],gasto=[],fiSafe=[];
-  let cap=net,crossR=null,crossF=null,depleted=null;
+  let cap=net,free=false,crossR=null,depleted=null;   // trayectoria realista: acumula y al ser libre vive de la renta
+  let capAcc=net,crossF=null;                          // trayectoria pura de acumulación: para el hito "colchón completo"
   for(let n=0;n<=N;n++){
-    if(n===fiSimLumpYr)cap+=fiSimLump;                 // inyección de capital extra al inicio del año elegido
     const age=ageNow+n;
     const mult=n<2?1:(n<7?1.25:1.5625);               // escalera de gasto de libertad
     const g=baseExp*mult, rentaY=cap*fiSimRet, fiNum=g/fiRate;
+    if(!free&&rentaY>=g){free=true;crossR={n,age,year:y0+n};}   // se vuelve libre: la renta cubre el gasto
+    if(crossF===null&&capAcc>=fiNum)crossF={n,age,year:y0+n};   // si seguís aportando, llegás al número FI completo
     const capShown=Math.max(0,cap);
     labels.push(String(y0+n));capital.push(Math.round(capShown));renta.push(Math.round(Math.max(0,capShown*fiSimRet)));gasto.push(Math.round(g));fiSafe.push(Math.round(fiNum));
-    if(crossR===null&&rentaY>=g)crossR={n,age,year:y0+n};
-    if(crossF===null&&cap>=fiNum)crossF={n,age,year:y0+n};
-    if(depleted===null&&age>=fiSimRetAge&&cap<=0)depleted={n,age,year:y0+n};
-    // Fase acumulación (trabajás): reinvertís el retorno + aportás. Fase vida (retirado): vivís de la renta, sin aporte.
-    cap=age>=fiSimRetAge ? cap+(rentaY-g) : cap*(1+fiSimRet)+fiSimSav;
+    if(depleted===null&&free&&cap<=0)depleted={n,age,year:y0+n};
+    // Antes de ser libre: reinvertís el retorno + aportás. Después: vivís de la renta (excedente reinvertido), sin aporte.
+    cap=free ? cap+(rentaY-g) : cap*(1+fiSimRet)+fiSimSav;
+    capAcc=capAcc*(1+fiSimRet)+fiSimSav;
   }
   return{labels,capital,renta,gasto,fiSafe,crossR,crossF,depleted,ageNow,y0};
 }
@@ -3336,8 +3334,8 @@ function renderFiSim(){
     const r=p.crossR?('<div class="fi-cross-val">'+p.crossR.year+' · '+p.crossR.age+' años</div>'):'<div class="fi-cross-val none">no llega en 40 años</div>';
     const f=p.crossF?('<div class="fi-cross-val">'+p.crossF.year+' · '+p.crossF.age+' años</div>'):'<div class="fi-cross-val none">no llega en 40 años</div>';
     cross.innerHTML='<div class="fi-cross-pill"><div class="fi-cross-lbl">⭐ Vivís de la renta (renta ≥ gasto)</div>'+r+'</div>'+
-                    '<div class="fi-cross-pill safe"><div class="fi-cross-lbl">🛡️ FI seguro (capital ≥ gasto÷'+(fiRate*100).toFixed(1).replace('.',',')+'%)</div>'+f+'</div>'+
-                    (p.depleted?('<div class="fi-cross-pill warn"><div class="fi-cross-lbl">⚠️ La olla se agota</div><div class="fi-cross-val none">en '+p.depleted.year+' ('+p.depleted.age+' años) · te retirás muy temprano</div></div>'):'');
+                    '<div class="fi-cross-pill safe"><div class="fi-cross-lbl">🛡️ Colchón completo (si seguís aportando)</div>'+f+'</div>'+
+                    (p.depleted?('<div class="fi-cross-pill warn"><div class="fi-cross-lbl">⚠️ La olla se agota</div><div class="fi-cross-val none">en '+p.depleted.year+' ('+p.depleted.age+' años) · vivís muy al límite</div></div>'):'');
   }
 }
 function nwLabelToKey(lbl){
@@ -3580,13 +3578,9 @@ document.querySelectorAll('#invPeriodBtns button').forEach(b=>{b.onclick=()=>{in
 const invVTbtn=document.getElementById('invVarToggle');if(invVTbtn)invVTbtn.onclick=()=>{invVarMode=invVarMode==='money'?'pct':'money';renderInvSummary();};
 document.querySelectorAll('#fiRateBtns button').forEach(b=>{b.onclick=()=>{fiRate=parseFloat(b.dataset.rate);renderFiSection();};});
 (function(){
-  const ret=document.getElementById('fiSimRet'),sav=document.getElementById('fiSimSav'),lump=document.getElementById('fiSimLump'),lyr=document.getElementById('fiSimLumpYr');
+  const ret=document.getElementById('fiSimRet'),sav=document.getElementById('fiSimSav');
   if(ret)ret.oninput=()=>{fiSimRet=parseFloat(ret.value)/100;document.getElementById('fiSimRetVal').textContent=ret.value.replace('.',',')+'%';renderFiSim();};
   if(sav)sav.oninput=()=>{fiSimSav=parseFloat(sav.value)*1000;document.getElementById('fiSimSavVal').textContent='US$'+sav.value+'k';renderFiSim();};
-  const rage=document.getElementById('fiSimRetAge');
-  if(rage)rage.oninput=()=>{fiSimRetAge=parseInt(rage.value);document.getElementById('fiSimRetAgeVal').textContent=rage.value;renderFiSim();};
-  if(lump)lump.oninput=()=>{fiSimLump=parseFloat(lump.value)*1000;document.getElementById('fiSimLumpVal').textContent='US$'+lump.value+'k';renderFiSim();};
-  if(lyr)lyr.onchange=()=>{fiSimLumpYr=parseInt(lyr.value);renderFiSim();};
 })();
 // ── NAV ───────────────────────────────────────────────────────
 document.getElementById('toggleBudgets').onclick=function(){
