@@ -129,16 +129,15 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .fi-m-val{font-size:19px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text);}
 .fi-m-val.warn{color:var(--amber);} .fi-m-val.pos{color:var(--green);} .fi-m-val.neg{color:var(--red);}
 .fi-m-hint{font-size:10px;color:var(--text3);margin-top:1px;}
-.fi-stages-wrap{margin-bottom:11px;}
-.fi-stages-lbl{font-size:11px;color:var(--text2);margin-bottom:6px;}
-.fi-stages{display:flex;align-items:stretch;gap:5px;}
-.fi-stage{flex:1;background:var(--surface);border-radius:9px;padding:8px 5px;text-align:center;}
-.fi-stage.last{background:var(--primary-bg);border:1px solid var(--primary);}
-.fi-stage-yr{font-size:10.5px;color:var(--text3);}
-.fi-stage-val{font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text);margin:2px 0;}
-.fi-stage-x{font-size:10px;color:var(--text3);}
-.fi-stage.last .fi-stage-x{color:var(--primary);font-weight:600;}
-.fi-stage-arrow{display:flex;align-items:center;color:var(--text3);font-size:13px;}
+.fi-m-hint b{color:var(--primary-dark);font-family:'DM Mono',monospace;}
+.fi-stages-wrap{margin-bottom:11px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;}
+.fi-stages-lbl{font-size:11px;color:var(--text2);}
+.fi-stages{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;font-size:12.5px;}
+.fi-stg{color:var(--text2);}
+.fi-stg b{color:var(--text);font-family:'DM Mono',monospace;font-weight:700;}
+.fi-stg.last b{color:var(--primary-dark);}
+.fi-stg .yr{color:var(--text3);font-size:10px;margin-right:3px;}
+.fi-stg-sep{color:var(--text3);}
 .fi-coast{font-size:12px;color:var(--green);background:var(--green-bg);border-radius:9px;padding:9px 11px;line-height:1.45;}
 .fi-assump{font-size:10.5px;color:var(--text3);margin-top:9px;text-align:center;line-height:1.4;}
 .fi-sim{margin-top:13px;border-top:1px solid var(--border);padding-top:13px;}
@@ -800,10 +799,10 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
         <div class="fi-metric"><div class="fi-m-lbl">Cobertura de gastos</div><div class="fi-m-val warn" id="fiCov">—</div><div class="fi-m-hint" id="fiCovHint">renta / gastos</div></div>
         <div class="fi-metric"><div class="fi-m-lbl">Años a FI</div><div class="fi-m-val" id="fiYears">—</div><div class="fi-m-hint" id="fiYearsAge"></div></div>
         <div class="fi-metric"><div class="fi-m-lbl">Tasa de ahorro</div><div class="fi-m-val" id="fiSav">—</div><div class="fi-m-hint">meta 40%</div></div>
-        <div class="fi-metric"><div class="fi-m-lbl">Colchón líquido</div><div class="fi-m-val" id="fiRun">—</div><div class="fi-m-hint">meses de gastos</div></div>
+        <div class="fi-metric"><div class="fi-m-lbl">Colchón líquido</div><div class="fi-m-val" id="fiRun">—</div><div class="fi-m-hint" id="fiRunHint">saludable 6-12 m</div></div>
       </div>
       <div class="fi-stages-wrap">
-        <div class="fi-stages-lbl">Escalera de gasto de libertad <span style="color:var(--text3)">· el tramo final define tu número FI</span></div>
+        <div class="fi-stages-lbl">Escalera de gasto:</div>
         <div class="fi-stages" id="fiStages"></div>
       </div>
       <div class="fi-coast" id="fiCoast"></div>
@@ -3266,14 +3265,22 @@ function renderFiSection(){
   // Tasa de ahorro EN VIVO
   const sav=fiSavingsRate(),savEl=document.getElementById('fiSav');
   if(savEl){if(sav==null){savEl.textContent='—';savEl.className='fi-m-val';}else{savEl.textContent=Math.round(sav*100)+'%';savEl.className='fi-m-val '+(sav>=0.3?'pos':(sav>=0?'warn':'neg'));}}
-  document.getElementById('fiRun').textContent=Math.round(liq/(gastosNow/12))+' m';
+  const colMonths=gastosNow>0?liq/(gastosNow/12):0,runEl=document.getElementById('fiRun');
+  runEl.textContent=Math.round(colMonths)+' m';
+  runEl.className='fi-m-val '+(colMonths>=6&&colMonths<=12?'pos':(colMonths<6?'warn':''));
+  const runHint=document.getElementById('fiRunHint');
+  if(runHint){
+    if(colMonths>12){const excess=liq-gastosNow;runHint.innerHTML='convertible: <b>US$'+Math.round(excess).toLocaleString('en-US')+'</b> a productivos';}
+    else if(colMonths>=6)runHint.textContent='saludable (6-12 m)';
+    else runHint.textContent='bajo · ideal 6-12 m';
+  }
   const coastN=(net>0&&net<fiNum)?Math.ceil(Math.log(fiNum/net)/Math.log(1+FI_RETURN_REAL)):0;
   const covFut=Math.round((renta+FI_GREENLAT_M)*12/gastosNow*100);
   const coastEl=document.getElementById('fiCoast');
   if(coastEl)coastEl.innerHTML='<strong>Coast FIRE:</strong> sin aportar más, tu patrimonio llega a tu número FI cerca de los <strong>'+(age+coastN)+'</strong> años; con tu ahorro objetivo (~US$70k/año) lo adelantás a los <strong>~'+(age+yrs)+'</strong>. Desde '+FI_GREENLAT_YEAR+', GreenLat sumaría ~US$'+FI_GREENLAT_M.toLocaleString('en-US')+'/mes (estimado) → cobertura ~'+covFut+'%.';
   // Escalera de gasto de libertad
   const stEl=document.getElementById('fiStages');
-  if(stEl)stEl.innerHTML=fiExpenseStages(gastosNow).map(s=>'<div class="fi-stage'+(s.last?' last':'')+'"><div class="fi-stage-yr">'+s.fromYear+(s.last?'+':'')+'</div><div class="fi-stage-val">US$'+Math.round(s.annual/1000)+'k</div><div class="fi-stage-x">×'+s.mult.toFixed(s.mult%1===0?0:2).replace('.',',')+'</div></div>').join('<div class="fi-stage-arrow">→</div>');
+  if(stEl)stEl.innerHTML=fiExpenseStages(gastosNow).map(s=>'<span class="fi-stg'+(s.last?' last':'')+'"><span class="yr">'+s.fromYear+(s.last?'+':'')+'</span><b>US$'+Math.round(s.annual/1000)+'k</b></span>').join('<span class="fi-stg-sep">→</span>');
   // Supuestos en vivo
   const asEl=document.querySelector('.fi-assump');
   if(asEl)asEl.textContent='Gastos en vivo (prom. 12m): US$'+Math.round(gastosNow/1000)+'k/año · libertad US$'+Math.round(freedomExp/1000)+'k (escalera +25%/+25%) · renta y tasa de ahorro en vivo · GreenLat +US$'+FI_GREENLAT_M.toLocaleString('en-US')+'/mes desde '+FI_GREENLAT_YEAR+' · retorno real 5% y ahorro US$70k/año (supuestos)';
