@@ -140,6 +140,14 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .fi-stg-sep{color:var(--text3);}
 .fi-coast{font-size:12px;color:var(--green);background:var(--green-bg);border-radius:9px;padding:9px 11px;line-height:1.45;}
 .fi-assump{font-size:10.5px;color:var(--text3);margin-top:9px;text-align:center;line-height:1.4;}
+.fi-rr{margin-top:11px;}
+.fi-rr-lbl{font-size:11px;color:var(--text2);margin-bottom:6px;}
+.fi-rr-lbl span{color:var(--text3);}
+.fi-rr-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;}
+.fi-rr-cell{background:var(--surface);border-radius:8px;padding:7px 4px;text-align:center;}
+.fi-rr-per{font-size:10px;color:var(--text3);}
+.fi-rr-val{font-size:13px;font-weight:700;font-family:'DM Mono',monospace;margin-top:2px;color:var(--text);}
+.fi-rr-val.pos{color:var(--green);} .fi-rr-val.neg{color:var(--red);} .fi-rr-val.na{color:var(--text3);font-size:11px;font-weight:600;}
 .fi-sim{margin-top:13px;border-top:1px solid var(--border);padding-top:13px;}
 .fi-sim-head{font-size:13px;font-weight:700;color:var(--text);margin-bottom:3px;}
 .fi-sim-sub{font-size:11px;color:var(--text3);margin-bottom:10px;}
@@ -156,7 +164,7 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .fi-ctrl label b{color:var(--primary-dark);font-family:'DM Mono',monospace;}
 .fi-ctrl input[type=range]{width:100%;accent-color:var(--primary);cursor:pointer;}
 .fi-ctrl select{width:100%;font-size:11.5px;padding:3px 6px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text);font-family:'DM Sans',sans-serif;}
-@media(max-width:520px){.fi-metrics{grid-template-columns:repeat(2,1fr);}.fi-sim-ctrls{grid-template-columns:1fr;}}
+@media(max-width:520px){.fi-metrics{grid-template-columns:repeat(2,1fr);}.fi-sim-ctrls{grid-template-columns:1fr;}.fi-rr-grid{grid-template-columns:repeat(3,1fr);}}
 .inv-invested{color:var(--text3);}
 .inv-tir{font-size:12px;font-family:'DM Mono',monospace;margin-top:5px;color:var(--text3);}
 .inv-tir .pos{color:var(--green);} .inv-tir .neg{color:var(--red);}
@@ -807,6 +815,10 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
       </div>
       <div class="fi-coast" id="fiCoast"></div>
       <div class="fi-assump">Supuestos: gastos hoy US$72k · libertad US$108k (+50%, hijos a futuro) · renta pasiva en vivo (prom. 12m real) · GreenLat +US$1.167/mes estim. desde 2030 · retorno real 5% · ahorro US$70k/año</div>
+      <div class="fi-rr">
+        <div class="fi-rr-lbl">Retorno real de tu cartera <span>· anualizado, en vivo · vs 5% supuesto</span></div>
+        <div class="fi-rr-grid" id="fiRealRet"></div>
+      </div>
       <div class="fi-sim">
         <div class="fi-sim-head">Simulador · proyección a 40 años</div>
         <div class="fi-sim-sub">Acumulás (aportás + reinvertís) hasta que tu renta cubre tus gastos; desde ahí vivís de la renta y la olla se estabiliza. Movés retorno y aporte y ves a qué edad sos libre.</div>
@@ -3097,7 +3109,15 @@ function invIncludedStart(endKey){
   return invMonthMinus(endKey,parseInt(invPeriod)-1);
 }
 function invInjectionsBetween(startKey,endKey){let net=0;(assetFlows||[]).forEach(f=>{const mo=String(f.flow_date).slice(0,7);if(mo>=startKey&&mo<=endKey){const amt=parseFloat(f.amount_usd)||0,t=f.flow_type||'inyeccion';if(t==='inyeccion')net+=amt;else if(t==='retiro')net-=amt;}});return net;}
-function invRentaBetween(startKey,endKey){const byc={Airbnb:0,Littio:0,QUEM:0};let total=0;(incomeRows||[]).forEach(r=>{if(r.category!=='Passive Income'||!r.date)return;const mo=String(r.date).slice(0,7);if(mo>=startKey&&mo<=endKey){const amt=parseFloat(r.amount_usd)||0;total+=amt;if(byc[r.subcategory]!=null)byc[r.subcategory]+=amt;}});return{total,byc};}
+function invRentaBetween(startKey,endKey){
+  const byc={Airbnb:0,Littio:0,QUEM:0};let total=0,hist=0;
+  const incCut=INCOME_CUTOFF.slice(0,7);
+  (incomeRows||[]).forEach(r=>{if(r.category!=='Passive Income'||!r.date)return;const mo=String(r.date).slice(0,7);if(mo>=startKey&&mo<=endKey){const amt=parseFloat(r.amount_usd)||0;total+=amt;if(byc[r.subcategory]!=null)byc[r.subcategory]+=amt;}});
+  // Histórico del Sheets (meses pre-cutoff): total mensual de Passive Income, sin desglose por activo
+  const prow=(typeof balData!=='undefined'&&balData.rowMap&&balData.rowMap['Passive Income'])||null;
+  if(prow)for(const lbl in prow){const k=nwLabelToKey(lbl);if(!k)continue;if(k>=startKey&&k<=endKey&&k<incCut){const v=parseFloat(prow[lbl]);if(isFinite(v)&&v>0)hist+=v;}}
+  return{total:total+hist,byc,hist};
+}
 const INV_PERIOD_LBL={'1':'1M','3':'3M','6':'6M','12':'12M','ytd':'YTD','all':'total'};
 // Per-asset return over the selected Date Range (invPeriod) ending at invMonth.
 function assetMetricsRange(asset){
@@ -3154,6 +3174,31 @@ function assetMetricsRange(asset){
   return{mode:cfg.mode,lifeInvested,valEnd,gain,gainPct,annual:r!=null?r*100:null,hasFlows:!!allFlows.length};
 }
 function monthSpan(startKey,endKey){const[ys,ms]=startKey.split('-').map(Number),[ye,me]=endKey.split('-').map(Number);return (ye-ys)*12+(me-ms)+1;}
+function invLatestMonth(){let l=null;PRODUCTIVE_ASSETS.forEach(a=>assetValuations(a.name).forEach(v=>{if(l===null||v.month>l)l=v.month;}));return l;}
+// Retorno real de TODA la cartera, anualizado (TIR money-weighted) sobre una ventana que termina en el último mes con datos.
+// Mezcla valorización (queda en valEnd) + renta realizada (cashflows positivos: income_entries post-cutoff + histórico Sheets pre-cutoff).
+function fiPortfolioReturn(period){
+  const endKey=invLatestMonth();if(!endKey)return null;
+  let baseKey;
+  if(period==='ytd')baseKey=endKey.slice(0,4)+'-01';
+  else baseKey=invMonthMinus(endKey,parseInt(period));
+  const earliest=invEarliestMonth();
+  if(!earliest||baseKey<earliest)return null;            // sin histórico suficiente para la ventana
+  const valStart=invTotalAt(baseKey),valEnd=invTotalAt(endKey);
+  if(valStart<=0)return null;
+  const injStart=invNextMonth(baseKey),incCut=INCOME_CUTOFF.slice(0,7);
+  const cf=[{date:new Date(baseKey+'-01T00:00:00'),amount:-valStart}];
+  // Flujos de capital: inyección/fee = salida (−), retiro = entrada (+)
+  (assetFlows||[]).forEach(f=>{const mo=String(f.flow_date).slice(0,7);if(mo>=injStart&&mo<=endKey){const amt=parseFloat(f.amount_usd)||0,t=f.flow_type||'inyeccion';cf.push({date:new Date(f.flow_date),amount:(t==='inyeccion'||t==='fee')?-amt:amt});}});
+  // Renta realizada (entra como +): income_entries post-cutoff…
+  (incomeRows||[]).forEach(r=>{if(r.category!=='Passive Income'||!r.date)return;const mo=String(r.date).slice(0,7);if(mo>=injStart&&mo<=endKey){const amt=parseFloat(r.amount_usd)||0;if(amt)cf.push({date:new Date(r.date),amount:amt});}});
+  // …y total histórico del Sheets pre-cutoff (a mitad de mes)
+  const prow=(balData.rowMap&&balData.rowMap['Passive Income'])||null;
+  if(prow)for(const lbl in prow){const k=nwLabelToKey(lbl);if(!k)continue;if(k>=injStart&&k<=endKey&&k<incCut){const v=parseFloat(prow[lbl]);if(isFinite(v)&&v>0)cf.push({date:new Date(k+'-15T00:00:00'),amount:v});}}
+  cf.push({date:new Date(endKey+'-28T00:00:00'),amount:valEnd});
+  const r=cf.length>=2?xirr(cf):null;
+  return r!=null?r*100:null;
+}
 function renderInvSummary(){
   invMonth=months[curIdx]||invMonth;
   if(!invMonth)return;
@@ -3179,7 +3224,7 @@ function renderInvSummary(){
   const vs=document.getElementById('invVarSub');if(vs)vs.textContent='desde '+mnShort(baseKey)+(clamped?' · sin datos previos':'')+(netInj?(' · neto '+fmtUSD0(netInj)+' aportes'):'');
   const r=invRentaBetween(incStart,invMonth);
   const rv=document.getElementById('invRentaVal');if(rv){rv.textContent=fmtUSD0(r.total);rv.className='inv-sum-val'+(r.total>0?' pos':'');}
-  const parts=[];if(r.byc.Airbnb)parts.push('Airbnb '+fmtUSD0(r.byc.Airbnb));if(r.byc.Littio)parts.push('Pots '+fmtUSD0(r.byc.Littio));if(r.byc.QUEM)parts.push('QUEM '+fmtUSD0(r.byc.QUEM));
+  const parts=[];if(r.byc.Airbnb)parts.push('Airbnb '+fmtUSD0(r.byc.Airbnb));if(r.byc.Littio)parts.push('Pots '+fmtUSD0(r.byc.Littio));if(r.byc.QUEM)parts.push('QUEM '+fmtUSD0(r.byc.QUEM));if(r.hist)parts.push('histórico '+fmtUSD0(r.hist));
   const rs=document.getElementById('invRentaSub');if(rs)rs.textContent=parts.length?parts.join(' · '):'sin renta en el período';
 }
 // ── LIBERTAD FINANCIERA (FIRE) ────────────────────────────────
@@ -3285,6 +3330,10 @@ function renderFiSection(){
   const asEl=document.querySelector('.fi-assump');
   if(asEl)asEl.textContent='Gastos en vivo (prom. 12m): US$'+Math.round(gastosNow/1000)+'k/año · libertad US$'+Math.round(freedomExp/1000)+'k (escalera +25%/+25%) · renta y tasa de ahorro en vivo · GreenLat +US$'+FI_GREENLAT_M.toLocaleString('en-US')+'/mes desde '+FI_GREENLAT_YEAR+' · retorno real 5% y ahorro US$70k/año (supuestos)';
   document.querySelectorAll('#fiRateBtns button').forEach(b=>b.classList.toggle('active',parseFloat(b.dataset.rate)===fiRate));
+  // Retorno real de la cartera por ventana
+  const RR=[{p:'3',l:'3m'},{p:'6',l:'6m'},{p:'12',l:'1 año'},{p:'ytd',l:'YTD'},{p:'24',l:'2 años'},{p:'60',l:'5 años'}];
+  const rrEl=document.getElementById('fiRealRet');
+  if(rrEl)rrEl.innerHTML=RR.map(w=>{const v=fiPortfolioReturn(w.p);const cls=v==null?'na':(v>=0?'pos':'neg');const txt=v==null?'s/d':((v>=0?'+':'−')+Math.abs(v).toFixed(1)+'%');return '<div class="fi-rr-cell"><div class="fi-rr-per">'+w.l+'</div><div class="fi-rr-val '+cls+'">'+txt+'</div></div>';}).join('');
   renderFiSim();
 }
 // Simulador FIRE: proyecta capital, renta generada y gasto año a año; marca los dos puntos de equilibrio.
