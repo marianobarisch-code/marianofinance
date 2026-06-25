@@ -3097,15 +3097,7 @@ function invIncludedStart(endKey){
   return invMonthMinus(endKey,parseInt(invPeriod)-1);
 }
 function invInjectionsBetween(startKey,endKey){let net=0;(assetFlows||[]).forEach(f=>{const mo=String(f.flow_date).slice(0,7);if(mo>=startKey&&mo<=endKey){const amt=parseFloat(f.amount_usd)||0,t=f.flow_type||'inyeccion';if(t==='inyeccion')net+=amt;else if(t==='retiro')net-=amt;}});return net;}
-function invRentaBetween(startKey,endKey){
-  const byc={Airbnb:0,Littio:0,QUEM:0};let total=0,hist=0;
-  const incCut=INCOME_CUTOFF.slice(0,7);
-  (incomeRows||[]).forEach(r=>{if(r.category!=='Passive Income'||!r.date)return;const mo=String(r.date).slice(0,7);if(mo>=startKey&&mo<=endKey){const amt=parseFloat(r.amount_usd)||0;total+=amt;if(byc[r.subcategory]!=null)byc[r.subcategory]+=amt;}});
-  // Histórico del Sheets (meses pre-cutoff): total mensual de Passive Income, sin desglose por activo
-  const prow=(typeof balData!=='undefined'&&balData.rowMap&&balData.rowMap['Passive Income'])||null;
-  if(prow)for(const lbl in prow){const k=nwLabelToKey(lbl);if(!k)continue;if(k>=startKey&&k<=endKey&&k<incCut){const v=parseFloat(prow[lbl]);if(isFinite(v)&&v>0)hist+=v;}}
-  return{total:total+hist,byc,hist};
-}
+function invRentaBetween(startKey,endKey){const byc={Airbnb:0,Littio:0,QUEM:0};let total=0;(incomeRows||[]).forEach(r=>{if(r.category!=='Passive Income'||!r.date)return;const mo=String(r.date).slice(0,7);if(mo>=startKey&&mo<=endKey){const amt=parseFloat(r.amount_usd)||0;total+=amt;if(byc[r.subcategory]!=null)byc[r.subcategory]+=amt;}});return{total,byc};}
 const INV_PERIOD_LBL={'1':'1M','3':'3M','6':'6M','12':'12M','ytd':'YTD','all':'total'};
 // Per-asset return over the selected Date Range (invPeriod) ending at invMonth.
 function assetMetricsRange(asset){
@@ -3187,7 +3179,7 @@ function renderInvSummary(){
   const vs=document.getElementById('invVarSub');if(vs)vs.textContent='desde '+mnShort(baseKey)+(clamped?' · sin datos previos':'')+(netInj?(' · neto '+fmtUSD0(netInj)+' aportes'):'');
   const r=invRentaBetween(incStart,invMonth);
   const rv=document.getElementById('invRentaVal');if(rv){rv.textContent=fmtUSD0(r.total);rv.className='inv-sum-val'+(r.total>0?' pos':'');}
-  const parts=[];if(r.byc.Airbnb)parts.push('Airbnb '+fmtUSD0(r.byc.Airbnb));if(r.byc.Littio)parts.push('Pots '+fmtUSD0(r.byc.Littio));if(r.byc.QUEM)parts.push('QUEM '+fmtUSD0(r.byc.QUEM));if(r.hist)parts.push('histórico '+fmtUSD0(r.hist));
+  const parts=[];if(r.byc.Airbnb)parts.push('Airbnb '+fmtUSD0(r.byc.Airbnb));if(r.byc.Littio)parts.push('Pots '+fmtUSD0(r.byc.Littio));if(r.byc.QUEM)parts.push('QUEM '+fmtUSD0(r.byc.QUEM));
   const rs=document.getElementById('invRentaSub');if(rs)rs.textContent=parts.length?parts.join(' · '):'sin renta en el período';
 }
 // ── LIBERTAD FINANCIERA (FIRE) ────────────────────────────────
