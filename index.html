@@ -83,6 +83,15 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .pot-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
 .pot-form-grid2{display:grid;grid-template-columns:1fr 1fr auto;gap:6px;align-items:center;}
 #amPotsForm input,#amPotsForm select{font-size:12px;padding:5px 7px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text);font-family:'DM Sans',sans-serif;width:100%;}
+.depto-head{margin-bottom:10px;}
+.depto-sub{font-size:11px;color:var(--text3);margin-top:2px;}
+.depto-empty{font-size:12px;color:var(--text3);padding:10px 0;}
+.depto-total{text-align:right;font-weight:700;font-family:'DM Mono',monospace;margin-top:8px;color:var(--text);}
+.depto-pay,.depto-del{font-size:11px;padding:3px 7px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;color:var(--text2);font-family:'DM Sans',sans-serif;}
+.depto-pay{border-color:var(--green);color:var(--green);}
+.depto-add{margin-top:14px;display:flex;flex-direction:column;gap:6px;}
+.depto-add input,.depto-add select{font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text);font-family:'DM Sans',sans-serif;}
+.depto-add-row{display:grid;grid-template-columns:1fr auto auto auto;gap:6px;align-items:center;}
 .inv-name{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;}
 .inv-balance{font-size:22px;font-weight:600;letter-spacing:-.5px;line-height:1;margin-bottom:6px;}
 .inv-balance.empty{color:var(--text3);font-weight:500;}
@@ -716,6 +725,7 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
           <button class="btn-primary" id="fixedSaveBtn">Guardar cambios</button>
         </div>
       </div>
+      <div class="card" id="deptoExpCard" style="margin-top:14px;"><div id="deptoExpWrap"></div></div>
     </div><!-- end bsub-fijos -->
   </div>
 
@@ -1073,6 +1083,7 @@ let sbNwRows=[];
 let assetFlows=[]; // asset_flows: inyecciones/retiros de capital por asset productivo (tab Investments)
 let littioPots=[]; // littio_pots: plazos fijos de Littio (capital, plazo, tasa, estado)
 const LITTIO_POTS='Littio (Pots)';
+const DEPTO_ASSET='Inmueble - Depto Libertador'; // gastos del Depto: fixed_expenses con asset_name=DEPTO (espejo, no gasto personal)
 let mbRows=[]; // monthly_balance manual entries (post-cutoff Sueldo, Comms+Exp, Passive, Alquiler)
 let incomeRows=[]; // income_entries individual income entries (from INCOME_CUTOFF onward)
 let budgetRows=[]; // category_budgets per-month (step-wise lookup)
@@ -1484,7 +1495,7 @@ function overlayFixedExpenses(){
     const monthStart=new Date(year,monthIdx,1);
     if(monthStart<cutoff)continue;
     const iso=year+'-'+String(monthIdx+1).padStart(2,'0')+'-01';
-    const monthFixed=fixedRows.filter(r=>r.month_year===iso);
+    const monthFixed=fixedRows.filter(r=>r.month_year===iso&&!r.asset_name); // los tagged (ej. Depto) NO cuentan como gasto personal
     if(!monthFixed.length)continue;
     const totalUsd=monthFixed.reduce((s,r)=>s+(parseFloat(r.amount_usd)||0),0);
     if(!balData.rowMap['Fijos'])balData.rowMap['Fijos']={};
@@ -2172,6 +2183,50 @@ function fmtPayPillRead(dueDate,isPaid,paidDate,today){
   return '<span class="fixed-pay-pill" style="background:#fff9e6;color:var(--amber);">En '+diff+' días</span>';
 }
 
+// ── GASTOS DEL DEPTO (espejo en Gastos Fijos, no son gasto personal) ──
+function deptoExpensesForMonth(k){return (fixedRows||[]).filter(r=>r.asset_name===DEPTO_ASSET&&String(r.month_year).slice(0,7)===k);}
+function deptoExpensesBetween(startKey,endKey){return (fixedRows||[]).filter(r=>r.asset_name===DEPTO_ASSET).reduce((s,r)=>{const mo=String(r.month_year).slice(0,7);return (mo>=startKey&&mo<=endKey)?s+(parseFloat(r.amount_usd)||0):s;},0);}
+function renderDeptoExpenses(k){
+  const cont=document.getElementById('deptoExpWrap');if(!cont)return;
+  const today=new Date();
+  const rows=deptoExpensesForMonth(k).slice().sort((a,b)=>(a.due_date||'~')<(b.due_date||'~')?-1:1);
+  const totalUsd=rows.reduce((s,r)=>s+(parseFloat(r.amount_usd)||0),0);
+  let html='<div class="depto-head"><div class="card-title">🏠 Depto Libertador — gastos de la inversión</div><div class="depto-sub">Espejo de vencimientos · NO cuentan como gasto personal (se netean contra el Airbnb)</div></div>';
+  if(rows.length){
+    html+='<table class="fixed-table"><thead><tr><th>Ítem</th><th>Vence</th><th>Monto</th><th>Estado</th><th></th></tr></thead><tbody>';
+    rows.forEach(r=>{const isPaid=!!r.paid_date,nm=(r.item_name||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+      html+='<tr><td>'+nm+'</td><td>'+fmtDueRead(r.due_date||'')+'</td><td style="text-align:right;">'+fmtAmtRead(parseFloat(r.amount)||0,r.currency)+'</td><td>'+fmtPayPillRead(r.due_date||'',isPaid,r.paid_date||'',today)+'</td><td style="white-space:nowrap;text-align:right;"><button class="depto-pay" data-id="'+r.id+'" data-paid="'+(isPaid?1:0)+'">'+(isPaid?'↺':'✓ pagar')+'</button> <button class="depto-del" data-id="'+r.id+'">🗑</button></td></tr>';});
+    html+='</tbody></table><div class="depto-total">Total mes: US$ '+Math.round(totalUsd).toLocaleString('en-US')+'</div>';
+  }else{html+='<div class="depto-empty">Todavía no cargaste gastos del Depto para este mes.</div>';}
+  html+='<div class="depto-add"><input type="text" id="deptoName" placeholder="Ítem (ej. Internet, Luz, Expensas)"><div class="depto-add-row"><input type="number" id="deptoAmt" placeholder="Monto" step="0.01"><select id="deptoCur"><option value="ARS">ARS</option><option value="USD">USD</option></select><input type="date" id="deptoDue"><button class="btn-primary" id="deptoAddBtn">Agregar</button></div><div id="deptoErr" style="color:var(--red);font-size:12px;min-height:14px;"></div></div>';
+  cont.innerHTML=html;
+  cont.querySelectorAll('.depto-pay').forEach(b=>b.onclick=()=>toggleDeptoPaid(b.dataset.id,b.dataset.paid==='0',k));
+  cont.querySelectorAll('.depto-del').forEach(b=>b.onclick=()=>deleteDeptoExpense(b.dataset.id,k));
+  const ab=document.getElementById('deptoAddBtn');if(ab)ab.onclick=()=>addDeptoExpense(k);
+  const dd=document.getElementById('deptoDue');if(dd&&!dd.value)dd.value=k+'-10';
+}
+async function addDeptoExpense(k){
+  const name=document.getElementById('deptoName').value.trim(),amt=parseFloat(document.getElementById('deptoAmt').value);
+  const cur=document.getElementById('deptoCur').value,due=document.getElementById('deptoDue').value,err=document.getElementById('deptoErr');
+  if(!name){err.textContent='Poné un nombre';return;}
+  if(isNaN(amt)||amt<=0){err.textContent='Monto inválido';return;}
+  const iso=k+'-01';
+  if(iso<CUTOFF_DATE){err.textContent='No se puede cargar un mes pre-cutoff';return;}
+  const btn=document.getElementById('deptoAddBtn');btn.disabled=true;
+  let fx=1450;try{fx=await fetchBlueRate();}catch(_){}
+  const amount_ars=cur==='ARS'?amt:Math.round(amt*fx*100)/100,amount_usd=cur==='USD'?amt:Math.round(amt/fx*100)/100;
+  try{
+    const{error}=await sb.from('fixed_expenses').insert({month_year:iso,item_name:name,category:'fijo',amount:amt,currency:cur,ars_per_usd:fx,amount_ars,amount_usd,due_date:due||null,asset_name:DEPTO_ASSET});
+    if(error)throw new Error(error.message);
+    fixedRows=await fetchFixedExpenses();await loadData();renderInvestments();renderDeptoExpenses(k);
+  }catch(e){err.textContent='Error: '+e.message;btn.disabled=false;}
+}
+async function toggleDeptoPaid(id,markPaid,k){
+  try{const{error}=await sb.from('fixed_expenses').update({paid_date:markPaid?new Date().toISOString().slice(0,10):null}).eq('id',id);if(error)throw new Error(error.message);fixedRows=await fetchFixedExpenses();renderDeptoExpenses(k);}catch(e){alert('Error: '+e.message);}
+}
+async function deleteDeptoExpense(id,k){
+  try{const{error}=await sb.from('fixed_expenses').delete().eq('id',id);if(error)throw new Error(error.message);fixedRows=await fetchFixedExpenses();await loadData();renderInvestments();renderDeptoExpenses(k);}catch(e){alert('Error: '+e.message);}
+}
 function getFixed3MonthKeys(k){
   const[y,m]=k.split('-');
   const dt=new Date(+y,+m-1,1);
@@ -2284,6 +2339,7 @@ function renderFixed(k){
   const mNames=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const today=new Date();
   const getRow=(name)=>fixedRows.find(r=>r.month_year===iso&&r.item_name===name);
+  renderDeptoExpenses(k);
   const editing=fixedEditMode;
   if(editing){
     document.getElementById('fixedMonthLabel').textContent=mNames[+m-1]+' '+y;
@@ -3472,6 +3528,10 @@ function renderInvestments(){
     }
     if(a.name===LITTIO_POTS&&(littioPots||[]).length){
       body+='<div class="inv-pots-line">'+potsActive().length+' pots activos · '+fmtUSD0(potsActiveCapital())+(potsAnyMatured()?' <span class="pot-due">⏰ a renovar</span>':'')+'</div>';
+    }
+    if(a.name===DEPTO_ASSET){
+      const dGastos=deptoExpensesBetween(invIncludedStart(invMonth),invMonth);
+      if(dGastos>0){const neto=(m.renta||0)-dGastos;body+='<div class="inv-pots-line">− gastos '+fmtUSD0(dGastos)+' = neto <strong class="'+(neto>=0?'pos':'neg')+'">'+fmtUSD0(neto)+'</strong></div>';}
     }
     const pencil='<button class="inv-val-edit" title="'+(shown==null?'Cargar valor':'Editar valor del mes')+'">✎</button>';
     const stale=(exact==null&&shown!=null)?'<div class="inv-stale" title="Actualizar valor de este mes">⚠ Sin actualizar este mes</div>':'';
