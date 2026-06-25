@@ -3516,7 +3516,7 @@ async function invSaveValuation(asset,raw,btn){
 // ── LITTIO POTS ───────────────────────────────────────────────
 function potMaturity(p){const d=new Date(p.start_date+'T00:00:00');d.setDate(d.getDate()+(parseInt(p.term_days)||0));return d;}
 function potMaturityKey(p){return potMaturity(p).toISOString().slice(0,10);}
-function potExpectedYield(p){return (parseFloat(p.capital_usd)||0)*((parseFloat(p.annual_rate)||0)/100)*((parseInt(p.term_days)||0)/365);}
+function potExpectedYield(p){const r=(parseFloat(p.annual_rate)||0)/100,d=(parseInt(p.term_days)||0)/365;return (parseFloat(p.capital_usd)||0)*(Math.pow(1+r,d)-1);} // interés efectivo anual compuesto (igual que Littio)
 function potDaysLeft(p){return Math.ceil((potMaturity(p)-new Date())/86400000);}
 function potIsMatured(p){return p.status==='activo'&&potMaturity(p)<=new Date();}
 function potsActive(){return (littioPots||[]).filter(p=>p.status==='activo');}
@@ -3578,7 +3578,7 @@ function renderPotsPanel(){
     const mat=potIsMatured(p),dl=potDaysLeft(p),ey=potExpectedYield(p);
     html+='<div class="pot-row'+(mat?' matured':'')+'">'
       +'<div class="pot-main"><span class="pot-cap">'+fmtUSD0(p.capital_usd)+'</span><span class="pot-meta">'+p.term_days+'d · '+(+p.annual_rate)+'%/año</span></div>'
-      +'<div class="pot-sub">'+(mat?'<span class="pot-due">⏰ vencido · a renovar</span>':('vence '+potMaturityKey(p)+' · faltan '+dl+'d'))+' · yield esper. '+fmtUSD0(ey)+'</div>'
+      +'<div class="pot-sub">'+(mat?'<span class="pot-due">⏰ vencido · a renovar</span>':('vence '+potMaturityKey(p)+' · faltan '+dl+'d'))+' · recompensa '+fmtUSD0(ey)+'</div>'
       +'<div class="pot-acts"><button class="pot-renew" data-id="'+p.id+'">Renovar</button><button class="pot-retire" data-id="'+p.id+'">Retirar</button></div>'
       +'</div>';
   });
