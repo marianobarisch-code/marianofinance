@@ -3775,6 +3775,15 @@ function closeAssetModal(){assetModal.classList.remove('active');if(amChartInst)
 document.getElementById('amClose').onclick=closeAssetModal;
 assetModal.onclick=function(e){if(e.target===assetModal)closeAssetModal();};
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&assetModal.classList.contains('active'))closeAssetModal();});
+// Pozo anual de extraordinarios: abrir/cerrar el modal (el onclick inline llamaba a una función que faltaba)
+function openExtraPoolModal(){const m=document.getElementById('extraPoolModal');if(m)m.classList.add('active');}
+function closeExtraPoolModal(){const m=document.getElementById('extraPoolModal');if(m)m.classList.remove('active');}
+(function(){
+  const m=document.getElementById('extraPoolModal');if(!m)return;
+  const c=document.getElementById('extraPoolClose');if(c)c.onclick=closeExtraPoolModal;
+  m.onclick=e=>{if(e.target===m)closeExtraPoolModal();};
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&m.classList.contains('active'))closeExtraPoolModal();});
+})();
 async function addAssetFlow(){
   if(!amCurrentAsset)return;
   const errEl=document.getElementById('amError');
