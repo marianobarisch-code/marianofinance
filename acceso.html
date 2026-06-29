@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prueba de acceso — Finance Mariano</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{--bg:#f4efe7;--surface:#fffdf9;--border:#e3dccf;--text:#2c2a26;--text2:#6b655c;--primary:#5E72EB;--primary-dark:#1F2F98;--green:#1a7a52;--red:#c0392b;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh;align-items:center;justify-content:center;padding:20px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:30px 26px;width:100%;max-width:380px;box-shadow:0 8px 30px rgba(0,0,0,.06);}
+  h1{font-size:19px;margin:0 0 4px;}
+  .sub{font-size:13px;color:var(--text2);margin:0 0 20px;line-height:1.4;}
+  label{font-size:13px;font-weight:600;display:block;margin:14px 0 6px;}
+  input{width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:11px;font-size:16px;background:#fff;}
+  input:focus{outline:none;border-color:var(--primary);}
+  button{width:100%;margin-top:16px;padding:13px;border:none;border-radius:11px;background:var(--primary);color:#fff;font-size:15px;font-weight:600;cursor:pointer;}
+  button:disabled{opacity:.5;cursor:not-allowed;}
+  button.ghost{background:transparent;color:var(--text2);border:1px solid var(--border);}
+  .msg{margin-top:16px;padding:12px 14px;border-radius:11px;font-size:13px;line-height:1.4;display:none;}
+  .msg.ok{background:#e7f5ee;color:var(--green);display:block;}
+  .msg.err{background:#fbeae8;color:var(--red);display:block;}
+  .msg.info{background:#eef1fe;color:var(--primary-dark);display:block;}
+  .step{display:none;}
+  .step.active{display:block;}
+  .success-box{text-align:center;}
+  .success-box .big{font-size:42px;margin-bottom:6px;}
+  code{background:#f0ece3;padding:2px 6px;border-radius:5px;font-size:12px;}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>🔒 Prueba de acceso</h1>
+  <p class="sub">Esto NO es la app — es una página de prueba para confirmar que el login por mail funciona, sin tocar nada de tus datos.</p>
+
+  <!-- Paso 1: pedir el código -->
+  <div class="step active" id="step1">
+    <label for="email">Tu mail</label>
+    <input type="email" id="email" value="marianobarisch@gmail.com" autocomplete="email">
+    <button id="sendBtn">Enviarme el código</button>
+  </div>
+
+  <!-- Paso 2: ingresar el código -->
+  <div class="step" id="step2">
+    <label for="code">Código que te llegó al mail (6 dígitos)</label>
+    <input type="text" id="code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456">
+    <button id="verifyBtn">Verificar y entrar</button>
+    <button class="ghost" id="backBtn">← Volver / reenviar</button>
+  </div>
+
+  <!-- Paso 3: éxito -->
+  <div class="step success-box" id="step3">
+    <div class="big">✅</div>
+    <h1 id="okEmail">¡Entraste!</h1>
+    <p class="sub" id="okDetail"></p>
+    <button class="ghost" id="logoutBtn">Cerrar sesión</button>
+  </div>
+
+  <div class="msg" id="msg"></div>
+</div>
+
+<script>
+  const SUPABASE_URL='https://afbhhtrbodflxvrjfwyf.supabase.co';
+  const SUPABASE_ANON_KEY='sb_publishable_-kOChgUMkLSQmpJQ8WJ1VA_IR5RfylD';
+  const client=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+
+  const $=id=>document.getElementById(id);
+  const msg=$('msg');
+  function show(text,kind){msg.className='msg '+kind;msg.innerHTML=text;}
+  function clearMsg(){msg.className='msg';msg.textContent='';}
+  function goStep(n){['step1','step2','step3'].forEach((s,i)=>$(s).classList.toggle('active',i===n-1));}
+
+  // Al cargar: si ya hay sesión, mostrar éxito directo
+  (async()=>{
+    const{data}=await client.auth.getSession();
+    if(data&&data.session){showSuccess(data.session);}
+  })();
+
+  function showSuccess(session){
+    goStep(3);
+    const email=session.user&&session.user.email?session.user.email:'(desconocido)';
+    $('okEmail').textContent='¡Entraste!';
+    $('okDetail').innerHTML='Sesión activa como <b>'+email+'</b>.<br>La sesión queda guardada en este navegador.';
+    show('Funciona de punta a punta. Avisale a Claude que diga <b>"login OK"</b> para integrarlo a la app.','ok');
+  }
+
+  $('sendBtn').onclick=async()=>{
+    const email=$('email').value.trim();
+    if(!email){show('Poné tu mail.','err');return;}
+    $('sendBtn').disabled=true;$('sendBtn').textContent='Enviando...';clearMsg();
+    const{error}=await client.auth.signInWithOtp({email,options:{shouldCreateUser:true}});
+    $('sendBtn').disabled=false;$('sendBtn').textContent='Enviarme el código';
+    if(error){show('Error: '+error.message+'<br><small>Si dice algo de "Email provider", falta activarlo en Supabase.</small>','err');return;}
+    goStep(2);
+    show('Te mandamos un mail a <b>'+email+'</b>. Buscá el <b>código de 6 dígitos</b> y ponelo acá. (Revisá spam si no llega en 1 min.)','info');
+  };
+
+  $('verifyBtn').onclick=async()=>{
+    const email=$('email').value.trim();
+    const token=$('code').value.trim();
+    if(!token){show('Poné el código que te llegó.','err');return;}
+    $('verifyBtn').disabled=true;$('verifyBtn').textContent='Verificando...';clearMsg();
+    const{data,error}=await client.auth.verifyOtp({email,token,type:'email'});
+    $('verifyBtn').disabled=false;$('verifyBtn').textContent='Verificar y entrar';
+    if(error){show('Código incorrecto o vencido: '+error.message,'err');return;}
+    showSuccess(data.session);
+  };
+
+  $('backBtn').onclick=()=>{goStep(1);clearMsg();};
+
+  $('logoutBtn').onclick=async()=>{
+    await client.auth.signOut();
+    goStep(1);
+    show('Sesión cerrada. Podés volver a probar el flujo completo desde cero.','info');
+  };
+</script>
+</body>
+</html>
