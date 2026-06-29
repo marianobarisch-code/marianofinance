@@ -530,6 +530,41 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 </head>
 <body>
 
+<style>
+#authGate{position:fixed;inset:0;z-index:100000;background:var(--bg,#f4efe7);display:flex;align-items:center;justify-content:center;padding:20px;font-family:'DM Sans',-apple-system,sans-serif;}
+#authGate.hidden{display:none;}
+#authGate .ag-card{background:var(--surface,#fffdf9);border:1px solid var(--border,#e3dccf);border-radius:18px;padding:30px 26px;width:100%;max-width:360px;box-shadow:0 8px 30px rgba(0,0,0,.08);}
+#authGate h1{font-size:20px;margin:0 0 4px;color:var(--text,#2c2a26);}
+#authGate .ag-sub{font-size:13px;color:var(--text2,#6b655c);margin:0 0 18px;}
+#authGate input{width:100%;box-sizing:border-box;padding:12px 14px;border:1px solid var(--border,#e3dccf);border-radius:11px;font-size:16px;background:#fff;margin-bottom:10px;color:var(--text,#2c2a26);}
+#authGate input:focus{outline:none;border-color:var(--primary,#5E72EB);}
+#authGate button{width:100%;padding:13px;border:none;border-radius:11px;background:var(--primary,#5E72EB);color:#fff;font-size:15px;font-weight:600;cursor:pointer;}
+#authGate button:disabled{opacity:.5;cursor:not-allowed;}
+#authGate button.ag-ghost{background:transparent;color:var(--text2,#6b655c);border:1px solid var(--border,#e3dccf);margin-top:8px;}
+#authGate .ag-step{display:none;}
+#authGate .ag-step.active{display:block;}
+#authGate .ag-msg{margin-top:14px;font-size:13px;line-height:1.45;padding:10px 12px;border-radius:10px;display:none;}
+#authGate .ag-msg.ok{background:#e7f5ee;color:#1a7a52;display:block;}
+#authGate .ag-msg.err{background:#fbeae8;color:#c0392b;display:block;}
+#authGate .ag-msg.info{background:#eef1fe;color:#1F2F98;display:block;}
+</style>
+<div id="authGate">
+  <div class="ag-card">
+    <h1>🔒 Finanzas / Mariano ✨</h1>
+    <p class="ag-sub">Ingresá con tu mail para ver tus datos.</p>
+    <div class="ag-step active" id="agStep1">
+      <input type="email" id="agEmail" value="marianobarisch@gmail.com" autocomplete="email" placeholder="Tu mail">
+      <button id="agSendBtn">Enviarme el código</button>
+    </div>
+    <div class="ag-step" id="agStep2">
+      <input type="text" id="agCode" inputmode="numeric" autocomplete="one-time-code" placeholder="Código de 6 dígitos">
+      <button id="agVerifyBtn">Entrar</button>
+      <button class="ag-ghost" id="agBackBtn">← Volver / reenviar</button>
+    </div>
+    <div class="ag-msg" id="agMsg"></div>
+  </div>
+</div>
+
 <header>
 <div class="logo">Finanzas <span>/ Mariano ✨</span></div>
   <div style="display:flex;align-items:center;gap:8px;">
@@ -3868,7 +3903,49 @@ document.getElementById('toggleBudgets').onclick=function(){
 const budgetSaveBtnEl=document.getElementById('budgetSaveBtn');
 if(budgetSaveBtnEl)budgetSaveBtnEl.onclick=saveCategoryBudgets;
 
-loadData();
+// ── AUTH GATE: la app solo carga datos si hay sesión válida ────
+async function agShowApp(){
+  const g=document.getElementById('authGate');
+  if(g)g.classList.add('hidden');
+  loadData();
+}
+function agMsg(text,kind){const m=document.getElementById('agMsg');if(!m)return;m.className='ag-msg '+(kind||'');m.innerHTML=text;}
+function agStep(n){['agStep1','agStep2'].forEach((s,i)=>{const el=document.getElementById(s);if(el)el.classList.toggle('active',i===n-1);});}
+function agLogout(){sb.auth.signOut().then(()=>location.reload());}
+function agWireLogin(){
+  const emailVal=()=>{const el=document.getElementById('agEmail');return el?el.value.trim():'';};
+  const sendBtn=document.getElementById('agSendBtn');
+  const verifyBtn=document.getElementById('agVerifyBtn');
+  const backBtn=document.getElementById('agBackBtn');
+  const codeEl=document.getElementById('agCode');
+  if(sendBtn)sendBtn.onclick=async()=>{
+    const e=emailVal();if(!e){agMsg('Poné tu mail.','err');return;}
+    sendBtn.disabled=true;sendBtn.textContent='Enviando...';agMsg('','');
+    const{error}=await sb.auth.signInWithOtp({email:e,options:{shouldCreateUser:false}});
+    sendBtn.disabled=false;sendBtn.textContent='Enviarme el código';
+    if(error){agMsg('Error: '+error.message,'err');return;}
+    agStep(2);agMsg('Te mandamos un código de 6 dígitos a <b>'+e+'</b>. Revisá tu mail (y spam).','info');
+    if(codeEl)codeEl.focus();
+  };
+  if(verifyBtn)verifyBtn.onclick=async()=>{
+    const e=emailVal();const token=codeEl?codeEl.value.trim():'';
+    if(!token){agMsg('Poné el código.','err');return;}
+    verifyBtn.disabled=true;verifyBtn.textContent='Entrando...';agMsg('','');
+    const{error}=await sb.auth.verifyOtp({email:e,token,type:'email'});
+    verifyBtn.disabled=false;verifyBtn.textContent='Entrar';
+    if(error){agMsg('Código incorrecto o vencido: '+error.message,'err');return;}
+    agShowApp();
+  };
+  if(backBtn)backBtn.onclick=()=>{agStep(1);agMsg('','');};
+  if(codeEl)codeEl.addEventListener('keydown',ev=>{if(ev.key==='Enter'&&verifyBtn)verifyBtn.click();});
+}
+(async function bootApp(){
+  try{
+    const{data}=await sb.auth.getSession();
+    if(data&&data.session){agShowApp();return;}
+  }catch(_){}
+  agWireLogin();
+})();
 // ── ADD EXPENSE MODAL ─────────────────────────────────────
 const exModal=document.getElementById('addExpenseModal');
 const exNameEl=document.getElementById('exName');
