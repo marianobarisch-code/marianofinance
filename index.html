@@ -1205,11 +1205,11 @@ async function fetchSheet(range){
 }
 
 async function fetchSupabaseExpenses(){
-  const{data,error}=await sb.from('expenses').select('id,date,name,amount,category,ars_per_usd,amount_usd').gte('date',CUTOFF_DATE).order('date',{ascending:true});
+  const{data,error}=await sb.from('expenses').select('id,date,name,amount,category,ars_per_usd,amount_usd,subcategory,currency').gte('date',CUTOFF_DATE).order('date',{ascending:true});
   if(error)throw new Error('Supabase: '+error.message);
   return(data||[]).map(r=>{
     const[y,m,d]=(r.date||'').split('-').map(Number);
-    return{id:r.id,date:new Date(y,m-1,d),name:(r.name||'').trim(),amt:parseFloat(r.amount)||0,amtUsd:parseFloat(r.amount_usd)||0,fx:parseFloat(r.ars_per_usd)||0,cat:(r.category||'').trim()};
+    return{id:r.id,date:new Date(y,m-1,d),name:(r.name||'').trim(),amt:parseFloat(r.amount)||0,amtUsd:parseFloat(r.amount_usd)||0,fx:parseFloat(r.ars_per_usd)||0,cat:(r.category||'').trim(),sub:(r.subcategory||'').trim(),cur:(r.currency||'USD')};
   }).filter(r=>r.date&&!isNaN(r.date.getTime()));
 }
 async function fetchSupabaseNetWorth(){
@@ -3966,6 +3966,9 @@ const fmtFx=v=>'$'+v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,'.');
 
 let exCatSelected='';
 let exCurrentFx=null;
+let exCurrency='USD'; // moneda del gasto extraordinario en curso (ARS|USD)
+function exSyncCurToggle(){const t=document.getElementById('exCurToggle');if(t)t.querySelectorAll('.ex-cur-btn').forEach(b=>b.classList.toggle('active',b.dataset.cur===exCurrency));}
+function setExCurrency(c){exCurrency=(c==='ARS')?'ARS':'USD';exSyncCurToggle();}
 let exEditingId=null;
 let exEditingFx=null;
 
@@ -4135,9 +4138,17 @@ document.getElementById('fixedSaveBtn').onclick=saveFixedExpenses;
   curRow.className='form-row';
   curRow.id='exCurrencyRow';
   curRow.style.display='none';
-  curRow.innerHTML=`<label class="form-label">Moneda</label><div style="font-size:13px;color:var(--text2);padding:8px 0;">USD (los gastos extraordinarios se registran en dólares)</div>`;
+  curRow.innerHTML=`<label class="form-label">Moneda</label>
+    <div class="ex-cur-toggle" id="exCurToggle">
+      <button type="button" class="ex-cur-btn" data-cur="ARS">ARS $</button>
+      <button type="button" class="ex-cur-btn" data-cur="USD">USD</button>
+    </div>`;
   const amtRow=document.querySelector('#exAmount').closest('.form-row-split');
   amtRow.before(curRow);
+  const exCurStyle=document.createElement('style');
+  exCurStyle.textContent='.ex-cur-toggle{display:flex;gap:8px}.ex-cur-btn{flex:1;padding:9px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text2);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}.ex-cur-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}';
+  document.head.appendChild(exCurStyle);
+  curRow.querySelector('#exCurToggle').addEventListener('click',e=>{const b=e.target.closest('.ex-cur-btn');if(!b)return;setExCurrency(b.dataset.cur);try{localStorage.setItem('exLastCurrency',exCurrency);}catch(_){}});
 
   let exSubCatSelected='';
 
@@ -4160,6 +4171,8 @@ document.getElementById('fixedSaveBtn').onclick=saveFixedExpenses;
       renderSubCats(EXTRA_CATEGORIES);
       exSubCatSelected='';
       document.getElementById('exSubCatInput').value='';
+      if(!exEditingId){setExCurrency(localStorage.getItem('exLastCurrency')||'USD');}
+      exSyncCurToggle();
     }else{
       subCatRow.style.display='none';
       curRow.style.display='none';
@@ -4224,13 +4237,15 @@ document.getElementById('fixedSaveBtn').onclick=saveFixedExpenses;
           exErrorEl.textContent='Necesito el TC. Reintentá o ingresá manual.';return;
         }
       }
-      const amount_usd=amount;
-      const amount_ars=amount*fx;
+      let amount_usd,amount_ars;
+      if(exCurrency==='ARS'){amount_ars=Math.round(amount*100)/100;amount_usd=Math.round((amount/fx)*100)/100;}
+      else{amount_usd=Math.round(amount*100)/100;amount_ars=Math.round(amount*fx*100)/100;}
       const isEdit=!!exEditingId;
       exSubmitBtn.disabled=true;
       exSubmitBtn.textContent='Guardando...';
       try{
-        const payload={date,name,amount:amount_ars,category:'Extraordinary',ars_per_usd:fx,amount_usd,subcategory:exSubCatSelected,is_extraordinary:true,currency:'USD'};
+        const payload={date,name,amount:amount_ars,category:'Extraordinary',ars_per_usd:fx,amount_usd,subcategory:exSubCatSelected,is_extraordinary:true,currency:exCurrency};
+        try{localStorage.setItem('exLastCurrency',exCurrency);}catch(_){}
         if(isEdit){
           const{error}=await sb.from('expenses').update(payload).eq('id',exEditingId);
           if(error)throw new Error(error.message);
@@ -4255,6 +4270,19 @@ document.getElementById('fixedSaveBtn').onclick=saveFixedExpenses;
     curRow.style.display='none';
     exSubCatSelected='';
     origCloseModal();
+  };
+
+  // Editar un extraordinario: precargar subcategoría, moneda y monto en su moneda original
+  const origExOpenModal=exOpenModal;
+  exOpenModal=function(row){
+    origExOpenModal(row);
+    if(row&&row.id&&row.cat==='Extraordinary'){
+      handleExtraCatChange('Extraordinary');
+      exSubCatSelected=row.sub||'';
+      document.getElementById('exSubCatInput').value=row.sub||'';
+      setExCurrency(row.cur||'USD');
+      exAmountEl.value=(row.cur==='ARS')?row.amt:row.amtUsd;
+    }
   };
   document.getElementById('addExpenseClose').onclick=exCloseModal;
   document.getElementById('exCancel').onclick=exCloseModal;
