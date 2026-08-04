@@ -1155,7 +1155,7 @@ const NW_MONTHS_ES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Ag
 const NW_GROUPS=[
   {key:'liquido',title:'Activos líquidos',items:['Wise','Citi','Galicia','Littio Card','Cash - USD'],color:'#7BD5F5',side:'asset',sheetTotalKey:'Liquido'},
   {key:'inversiones',title:'Inversiones',items:['Binance','eToro','StoneX'],color:'#5E72EB',side:'asset',sheetTotalKey:'Crypto, acciones y bonos'},
-  {key:'inmuebles',title:'Inmuebles',items:['Inmueble - Depto Libertador','Grupo Zeta'],color:'#1F2F98',side:'asset',sheetTotalKey:'Inmueble - Depto Libertador'},
+  {key:'inmuebles',title:'Real Estate',items:['Inmueble - Depto Libertador','Grupo Zeta'],color:'#1F2F98',side:'asset',sheetTotalKey:'Inmuebles - Total'},
   {key:'participaciones',title:'Participaciones y préstamos',items:['Littio (Equity)','GreenLat','Littio (Pots)','Préstamo QUEM (Walter y Mati)'],color:'#FDC094',side:'asset',sheetTotalKey:'Participación/Préstamos'},
   {key:'pasivos',title:'Pasivos',items:['Provisión GreenLat','Provisión Alquiler'],color:'#c0392b',side:'liability',sheetTotalKey:'Pasivos'}
 ];
@@ -2836,7 +2836,7 @@ function renderNetWorth(k){
   const bdGroups=[
     {title:'Activos líquidos',rows:['Wise','Citi','Galicia','Littio Card','Cash - USD'],totalKey:'Liquido'},
     {title:'Inversiones',rows:['Binance','eToro','StoneX'],totalKey:'Crypto, acciones y bonos'},
-    {title:'Inmuebles',rows:['Inmueble - Depto Libertador'],totalKey:'Inmueble - Depto Libertador'},
+    {title:'Real Estate',rows:['Inmueble - Depto Libertador','Grupo Zeta'],totalKey:'Inmuebles - Total'},
     {title:'Participaciones y préstamos',rows:['Littio (Equity)','GreenLat','Littio (Pots)','Préstamo QUEM (Walter y Mati)'],totalKey:'Participación/Préstamos'},
     {title:'Pasivos',rows:['Provisión GreenLat','Provisión Alquiler'],totalKey:'Pasivos'}
   ];
