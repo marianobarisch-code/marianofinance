@@ -1204,10 +1204,10 @@ const CAT_ICONS={'Supermercados':'🛒','Suplementos':'💊','Planes Familia':'�
 const catIcon=c=>CAT_ICONS[c]||'🎲';
 // ===== Income module config =====
 const INCOME_CUTOFF='2026-06-01'; // desde Junio los ingresos se cargan uno por uno en income_entries
-const INCOME_CATEGORIES=['Sueldo','Comisiones Storyly','Referidos'];
+const INCOME_CATEGORIES=['Sueldo','Comisiones Storyly','Referidos','Aporte María'];
 const INCOME_PASSIVE_SUBCATS=['QUEM','Littio','Airbnb'];
 // Mapea cada categoría de ingreso a su fila en la tabla de Income & Spending
-const INCOME_ROW_MAP={'Sueldo':'Sueldo','Comisiones Storyly':'Comms + Expenses','Passive Income':'Passive Income','Referidos':'Otros'};
+const INCOME_ROW_MAP={'Sueldo':'Sueldo','Comisiones Storyly':'Comms + Expenses','Passive Income':'Passive Income','Referidos':'Otros','Aporte María':'Aporte María'};
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 
 const fmtUSD=v=>'$'+Math.round(v).toLocaleString('en-US');
@@ -1510,7 +1510,7 @@ function overlaySupabaseIncome(){
   const cutoff=new Date(INCOME_CUTOFF+'T00:00:00');
   const monthNamesLc=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
   const monthNamesEs=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const ROWS=['Sueldo','Comms + Expenses','Passive Income','Otros'];
+  const ROWS=['Sueldo','Comms + Expenses','Passive Income','Otros','Aporte María'];
   // Para cada mes >= INCOME_CUTOFF que exista en la tabla, init a 0 (sobreescribe monthly_balance/Sheets)
   for(const[col,monthLabel]of Object.entries(balData.monthCols)){
     const m=monthLabel.match(/^(\w+)\s+(\d{2})$/i);
@@ -1553,7 +1553,7 @@ function recomputeBalanceTotals(){
     if(monthStart<cutoff)continue;
     const get=lbl=>balData.rowMap[lbl]?balData.rowMap[lbl][monthLabel]||0:0;
     // Ingreso total = Sueldo + Comms+Expenses + Passive Income + Otros (Sheets keeps Otros)
-    const ingreso=get('Sueldo')+get('Comms + Expenses')+get('Passive Income')+get('Otros');
+    const ingreso=get('Sueldo')+get('Comms + Expenses')+get('Passive Income')+get('Otros')+get('Aporte María');
     if(!balData.rowMap['Ingreso total'])balData.rowMap['Ingreso total']={};
     balData.rowMap['Ingreso total'][monthLabel]=ingreso;
     // Egresos = Alquiler + Fijos + Variables + Extraordinary Expenses
@@ -1867,11 +1867,12 @@ function renderBalance(k){
   // Table
   const EDITABLE_ITEMS=['Sueldo','Comms + Expenses','Passive Income','Alquiler'];
   const rows=[
-    {label:'Ingreso total',keys:['Sueldo','Comms + Expenses','Passive Income','Otros'],isSection:true,mainKey:'Ingreso total'},
+    {label:'Ingreso total',keys:['Sueldo','Comms + Expenses','Passive Income','Otros','Aporte María'],isSection:true,mainKey:'Ingreso total'},
     {label:'Sueldo',keys:[],mainKey:'Sueldo',editable:true},
     {label:'Comms + Expenses',keys:[],mainKey:'Comms + Expenses',editable:true},
     {label:'Passive Income',keys:[],mainKey:'Passive Income',editable:true},
     {label:'Otros (Referidos)',keys:[],mainKey:'Otros'},
+    {label:'Aporte María',keys:[],mainKey:'Aporte María'},
     {label:'Egresos',keys:[],isSection:true,mainKey:'Egresos'},
     {label:'Alquiler',keys:[],mainKey:'Alquiler',editable:true},
     {label:'Fijos',keys:[],mainKey:'Fijos'},
