@@ -3770,12 +3770,27 @@ async function renewPot(id){
   potBusy=true;
   document.querySelectorAll('.pot-renew,.pot-retire').forEach(b=>b.disabled=true);
   const today=new Date().toISOString().slice(0,10);
+  // Yield ganado por el pot que se renueva: interés efectivo por los días mantenidos (tope = el plazo)
+  const startD=new Date((p.start_date||today)+'T00:00:00'),termD=parseInt(p.term_days)||0;
+  let daysHeld=Math.round((new Date()-startD)/86400000);
+  if(daysHeld<0)daysHeld=0; if(daysHeld>termD)daysHeld=termD;
+  const rate=(parseFloat(p.annual_rate)||0)/100;
+  const yieldUsd=Math.round((parseFloat(p.capital_usd)||0)*(Math.pow(1+rate,daysHeld/365)-1)*100)/100;
   try{
+    // 1) crear el pot nuevo
     const{error:e1}=await sb.from('littio_pots').insert({capital_usd:p.capital_usd,start_date:today,term_days:p.term_days,annual_rate:p.annual_rate,status:'activo',note:'Renovación'});
     if(e1)throw new Error(e1.message);
+    // 2) retirar el viejo
     const{error:e2}=await sb.from('littio_pots').update({status:'retirado',updated_at:new Date().toISOString()}).eq('id',id);
     if(e2)throw new Error(e2.message);
+    // 3) registrar el yield ganado en Passive Income (subcat Littio)
+    if(yieldUsd>0 && today>=INCOME_CUTOFF){
+      let fx=1450;try{fx=await fetchBlueRate();}catch(_){}
+      const{error:ey}=await sb.from('income_entries').insert({date:today,category:'Passive Income',subcategory:'Littio',amount:yieldUsd,currency:'USD',ars_per_usd:fx,amount_usd:yieldUsd,note:'Yield renovación pot'});
+      if(ey)throw new Error(ey.message);
+    }
     await potsReload();
+    if(yieldUsd>0){setStatus('✓ Renovado · yield '+fmtUSD0(yieldUsd)+' → Passive','ok');setTimeout(()=>setStatus('',''),4000);}
   }catch(e){alert('Error: '+e.message);document.querySelectorAll('.pot-renew,.pot-retire').forEach(b=>b.disabled=false);}
   finally{potBusy=false;}
 }
