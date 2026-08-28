@@ -3741,25 +3741,34 @@ async function syncPotsValuation(){
   try{await sb.from('net_worth_balances').upsert([{month_year:iso,item_name:LITTIO_POTS,category:invAssetCategory(LITTIO_POTS),amount_usd:total}],{onConflict:'month_year,item_name'});}catch(e){console.warn('syncPots:',e.message);}
 }
 async function potsReload(){littioPots=await fetchLittioPots();await syncPotsValuation();await loadData();renderInvestments();if(amCurrentAsset===LITTIO_POTS)openAssetDetail(LITTIO_POTS);}
+let potBusy=false; // candado anti doble-click en crear/renovar/retirar pots
 async function addPot(){
+  if(potBusy)return;
   const cap=parseFloat(document.getElementById('potCap').value),date=document.getElementById('potDate').value;
   const term=parseInt(document.getElementById('potTerm').value),rate=parseFloat(document.getElementById('potRate').value);
   const err=document.getElementById('potErr');
   if(isNaN(cap)||cap<=0){err.textContent='Capital inválido';return;}
   if(!date){err.textContent='Poné fecha de inicio';return;}
   if(isNaN(rate)||rate<=0){err.textContent='Tasa inválida';return;}
-  const btn=document.getElementById('potAddBtn');btn.disabled=true;
+  const btn=document.getElementById('potAddBtn');btn.disabled=true;potBusy=true;
   try{
     const{error}=await sb.from('littio_pots').insert({capital_usd:cap,start_date:date,term_days:term,annual_rate:rate,status:'activo'});
     if(error)throw new Error(error.message);
     await potsReload();
   }catch(e){err.textContent='Error: '+e.message;btn.disabled=false;}
+  finally{potBusy=false;}
 }
 async function retirePot(id){
-  try{const{error}=await sb.from('littio_pots').update({status:'retirado',updated_at:new Date().toISOString()}).eq('id',id);if(error)throw new Error(error.message);await potsReload();}catch(e){alert('Error: '+e.message);}
+  if(potBusy)return;potBusy=true;
+  document.querySelectorAll('.pot-renew,.pot-retire').forEach(b=>b.disabled=true);
+  try{const{error}=await sb.from('littio_pots').update({status:'retirado',updated_at:new Date().toISOString()}).eq('id',id);if(error)throw new Error(error.message);await potsReload();}catch(e){alert('Error: '+e.message);document.querySelectorAll('.pot-renew,.pot-retire').forEach(b=>b.disabled=false);}
+  finally{potBusy=false;}
 }
 async function renewPot(id){
+  if(potBusy)return;
   const p=(littioPots||[]).find(x=>x.id===id);if(!p)return;
+  potBusy=true;
+  document.querySelectorAll('.pot-renew,.pot-retire').forEach(b=>b.disabled=true);
   const today=new Date().toISOString().slice(0,10);
   try{
     const{error:e1}=await sb.from('littio_pots').insert({capital_usd:p.capital_usd,start_date:today,term_days:p.term_days,annual_rate:p.annual_rate,status:'activo',note:'Renovación'});
@@ -3767,7 +3776,8 @@ async function renewPot(id){
     const{error:e2}=await sb.from('littio_pots').update({status:'retirado',updated_at:new Date().toISOString()}).eq('id',id);
     if(e2)throw new Error(e2.message);
     await potsReload();
-  }catch(e){alert('Error: '+e.message);}
+  }catch(e){alert('Error: '+e.message);document.querySelectorAll('.pot-renew,.pot-retire').forEach(b=>b.disabled=false);}
+  finally{potBusy=false;}
 }
 async function registerPotYield(){
   const amt=parseFloat(document.getElementById('potYieldAmt').value),date=document.getElementById('potYieldDate').value,err=document.getElementById('potErr');
