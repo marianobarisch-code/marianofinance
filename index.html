@@ -1881,9 +1881,14 @@ function renderBalance(k){
   ];
   const recentMonths=last.slice(-4);
   let html=`<thead><tr><th>Concepto</th>${recentMonths.map(m=>`<th>${mnShort(m)}</th>`).join('')}</tr></thead><tbody>`;
+  const passiveSubs=[...new Set((incomeRows||[]).filter(r=>r.category==='Passive Income'&&r.subcategory).map(r=>r.subcategory))].sort();
   rows.forEach(row=>{
     const cls=row.isSection?'section-row':'';
-    html+=`<tr class="${cls}"><td>${row.label}</td>`;
+    const isPassive=row.mainKey==='Passive Income';
+    const lbl=(isPassive&&passiveSubs.length)
+      ? '<span class="bal-pcaret" style="cursor:pointer;user-select:none;color:var(--primary);font-weight:600;">'+(balPassiveExpanded?'▾':'▸')+' '+row.label+'</span>'
+      : row.label;
+    html+=`<tr class="${cls}"><td>${lbl}</td>`;
     recentMonths.forEach(m=>{
       const mk3=getBalMonthKey(m);
       const v=get(row.mainKey,mk3);
@@ -1899,6 +1904,16 @@ function renderBalance(k){
       }
     });
     html+='</tr>';
+    if(isPassive&&balPassiveExpanded){
+      passiveSubs.forEach(sub=>{
+        html+=`<tr class="bal-psub"><td style="padding-left:24px;font-size:12px;color:var(--text2)">${sub}</td>`;
+        recentMonths.forEach(m=>{
+          const sv=(incomeRows||[]).filter(r=>r.category==='Passive Income'&&r.subcategory===sub&&String(r.date).slice(0,7)===m).reduce((s,r)=>s+(parseFloat(r.amount_usd)||0),0);
+          html+=`<td style="font-size:12px;color:${sv<0?'var(--red)':'var(--text3)'}">${sv!==0?fmtUSD(sv):'—'}</td>`;
+        });
+        html+='</tr>';
+      });
+    }
   });
   // Balance & savings rows
   html+=`<tr class="total-row"><td>Balance</td>`;
@@ -1913,6 +1928,8 @@ function renderBalance(k){
   });
   html+='</tr></tbody>';
   document.getElementById('balTable').innerHTML=html;
+  const pcaret=document.querySelector('#balTable .bal-pcaret');
+  if(pcaret)pcaret.onclick=()=>{balPassiveExpanded=!balPassiveExpanded;renderBalance(months[curIdx]);};
   // Toggle Editar / actions row visibility based on balEditMode
   const balEditBtn=document.getElementById('balEditBtn');
   const balActionsRow=document.getElementById('balActionsRow');
@@ -2239,6 +2256,7 @@ async function saveSingleBudget(cat){
 
 // ── INCOME & SPENDING edit-mode flag (gates the editable bal-cell inputs) ──
 let balEditMode=false;
+let balPassiveExpanded=false; // desplegable de Passive Income por subcategoría (Airbnb/QUEM/Littio)
 let balPeriod='month'; // 'month' or 'ytd'
 
 // ── FIXED EXPENSES (sub-tab) ──────────────────────────────────
