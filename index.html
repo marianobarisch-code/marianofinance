@@ -47,6 +47,9 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:.
 .tab-btn{padding:.7rem 1.25rem;font-size:13px;font-weight:500;color:var(--text3);background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;font-family:'DM Sans',sans-serif;}
 .tab-btn:hover{color:var(--text2);}
 .tab-btn.active{color:var(--text);border-bottom-color:var(--primary);}
+.tab-dot{display:none;width:7px;height:7px;border-radius:50%;background:var(--red);margin-left:6px;vertical-align:middle;box-shadow:0 0 0 2px rgba(192,57,43,.18);}
+.tab-dot.show{display:inline-block;animation:dotPulse 1.6s ease-in-out infinite;}
+@keyframes dotPulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.4;transform:scale(.82);}}
 
 /* MAIN */
 main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
@@ -578,7 +581,7 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 <div class="tabs-bar">
   <button class="tab-btn" data-tab="networth">Net Worth</button>
   <button class="tab-btn" data-tab="balance">Income & Spending</button>
-  <button class="tab-btn active" data-tab="budget">Budget</button>
+  <button class="tab-btn active" data-tab="budget">Budget<span class="tab-dot" id="budgetDot" title="Tenés pagos por vencer"></span></button>
   <button class="tab-btn" data-tab="insights">Insights</button>
   <button class="tab-btn" data-tab="investments">Investments</button>
 </div>
@@ -2289,6 +2292,44 @@ function fmtPayPillRead(dueDate,isPaid,paidDate,today){
   if(diff<=3)return '<span class="fixed-pay-pill" style="background:#fff3e0;color:var(--amber);">En '+diff+' días</span>';
   return '<span class="fixed-pay-pill" style="background:#fff9e6;color:var(--amber);">En '+diff+' días</span>';
 }
+// Etiqueta + color de vencimiento para la vista read-only de 3 meses.
+// En vez de "Pendiente" (que ya se sabe por el color), muestra la fecha de vencimiento.
+function dueUrgency(dueDate,today){
+  if(!dueDate)return {bg:'var(--surface2)',color:'var(--text3)',label:'Sin fecha'};
+  const p=dueDate.split('-');
+  const dm=p.length===3?p[2]+'/'+p[1]:dueDate;
+  const due=new Date(dueDate+'T00:00:00');
+  const diff=Math.ceil((due-today)/(1000*60*60*24));
+  if(diff<0) return {bg:'#fdf0ee',color:'var(--red)',  label:'Venció '+dm};
+  if(diff===0)return {bg:'#fdf0ee',color:'var(--red)',  label:'Vence hoy '+dm};
+  if(diff<=3) return {bg:'#fff3e0',color:'var(--amber)',label:'Vence '+dm};
+  if(diff<=10)return {bg:'#fff9e6',color:'var(--amber)',label:'Vence '+dm};
+  return              {bg:'var(--surface2)',color:'var(--text2)',label:'Vence '+dm};
+}
+// Cuenta pagos fijos sin marcar como pagados que están vencidos o por vencer (≤7 días),
+// dentro de una ventana razonable (no arrastra deudas viejas de hace meses).
+function fixedDueSoonCount(){
+  if(!fixedRows||!fixedRows.length)return 0;
+  const today=new Date();today.setHours(0,0,0,0);
+  let n=0;
+  fixedRows.forEach(r=>{
+    if(r.paid_date)return;                 // ya pagado
+    if(!r.due_date)return;                  // sin fecha de vencimiento
+    if(r.item_name==='Megatlon')return;     // pago anual, no aplica
+    if((parseFloat(r.amount)||0)<=0)return; // sin monto
+    const due=new Date(r.due_date+'T00:00:00');
+    const diff=Math.ceil((due-today)/(1000*60*60*24));
+    if(diff<=7 && diff>=-31)n++;            // por vencer (≤7d) o vencido hasta hace 1 mes
+  });
+  return n;
+}
+// Muestra/oculta el puntito rojo de alerta en el tab Budget.
+function updateBudgetAlertDot(){
+  const dot=document.getElementById('budgetDot');if(!dot)return;
+  const n=fixedDueSoonCount();
+  if(n>0){dot.classList.add('show');dot.title=n+(n===1?' pago por vencer o vencido':' pagos por vencer o vencidos');}
+  else{dot.classList.remove('show');}
+}
 
 // ── GASTOS DEL DEPTO (espejo en Gastos Fijos, no son gasto personal) ──
 function deptoExpensesForMonth(k){return (fixedRows||[]).filter(r=>r.asset_name===DEPTO_ASSET&&String(r.month_year).slice(0,7)===k);}
@@ -2400,7 +2441,7 @@ function getFixed3MonthKeys(k){
 function renderFixed3Month(k){
   const mNames=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   const mKeys=getFixed3MonthKeys(k);
-  const today=new Date();
+  const today=new Date();today.setHours(0,0,0,0);
   const getRow=(name,iso)=>fixedRows.find(r=>r.month_year===iso&&r.item_name===name);
   const fmtShort=(key)=>{const[y,m]=key.split('-');return mNames[+m-1]+' '+y.slice(2);};
   const fmtAmt=(a)=>a?'ARS '+Math.round(a).toLocaleString('es-AR'):'—';
@@ -2418,6 +2459,7 @@ function renderFixed3Month(k){
       const row=getRow(item,iso);
       const amount=row?parseFloat(row.amount)||0:0;
       const paidDate=row?row.paid_date||'':'';
+      const dueDate=row?row.due_date||'':'';
       const isPaid=!!paidDate;
       totals[mi]+=amount;
       // Megatlon special handling
@@ -2430,13 +2472,19 @@ function renderFixed3Month(k){
         html+='</td>';
       }else if(amount===0&&!row){
         html+='<td class="fixed-3m-empty"><span class="fixed-3m-amt" style="color:var(--text3);">—</span></td>';
-      }else{
-        const cls=isPaid?'fixed-3m-paid':'fixed-3m-unpaid';
-        const statusLbl=isPaid?'Pagado':'Pendiente';
-        const statusCls=isPaid?'paid':'unpaid';
-        html+='<td class="'+cls+'">';
+      }else if(isPaid){
+        const p=(paidDate||'').split('-');
+        const lbl=p.length===3?'Pagado · '+p[2]+'/'+p[1]:'Pagado';
+        html+='<td class="fixed-3m-paid">';
         html+='<span class="fixed-3m-amt">'+fmtAmt(amount)+'</span>';
-        html+='<span class="fixed-3m-status '+statusCls+'">'+statusLbl+'</span>';
+        html+='<span class="fixed-3m-status paid">'+lbl+'</span>';
+        html+='</td>';
+      }else{
+        // Sin pagar: mostramos la FECHA DE VENCIMIENTO (el estado ya lo dice el color)
+        const u=dueUrgency(dueDate,today);
+        html+='<td style="background:'+u.bg+';">';
+        html+='<span class="fixed-3m-amt">'+fmtAmt(amount)+'</span>';
+        html+='<span class="fixed-3m-status" style="color:'+u.color+';font-weight:600;">'+u.label+'</span>';
         html+='</td>';
       }
     });
@@ -2500,6 +2548,7 @@ function renderFixed(k){
   const today=new Date();
   const getRow=(name)=>fixedRows.find(r=>r.month_year===iso&&r.item_name===name);
   renderDeptoExpenses(k);
+  updateBudgetAlertDot();
   const editing=fixedEditMode;
   if(editing){
     document.getElementById('fixedMonthLabel').textContent=mNames[+m-1]+' '+y;
