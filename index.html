@@ -425,6 +425,30 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .scope-chip.mio,.txn-action-btn.scope-chip.mio{background:var(--amber-bg)}
 .scope-chip.static{cursor:default;opacity:.75}
 .scope-maria{font-size:9px;font-weight:700;color:var(--green);background:var(--green-bg);border-radius:4px;padding:1px 4px;margin-left:2px;line-height:1.4}
+.mono{font-family:'DM Mono',monospace;font-variant-numeric:tabular-nums}
+.maria-btn{background:var(--surface);color:#1F2F98;border:1px solid #c9d0f0;padding:11px 16px;font-size:14px;font-weight:700;border-radius:10px;cursor:pointer;font-family:'DM Sans',sans-serif;margin:0 0 1rem 8px;display:inline-flex;align-items:center;gap:6px;vertical-align:top}
+.maria-btn:hover{border-color:#1F2F98}
+.cm-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.cm-title{font-size:13px;font-weight:700}
+.cm-sub{font-size:11px;color:var(--text3)}
+.cm-tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.cm-tile{border-radius:12px;padding:10px 12px;border:1px solid var(--border)}
+.cm-tile.casa{background:#E9ECF9;border-color:#c9d0f0}
+.cm-tile.mio{background:var(--amber-bg);border-color:#efd9b0}
+.cm-tile .k{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.cm-tile.casa .k{color:#1F2F98}
+.cm-tile.mio .k{color:var(--amber)}
+.cm-tile .v{font-family:'DM Mono',monospace;font-size:20px;font-weight:500;margin:2px 0}
+.cm-tile .s{font-size:11px;color:var(--text2);line-height:1.5}
+.cm-settle{display:grid;grid-template-columns:1fr auto;gap:3px 12px;font-size:13px;padding:8px 10px;background:var(--surface2);border-radius:10px}
+.cm-settle .r{text-align:right;font-family:'DM Mono',monospace}
+.cm-settle .tot{font-weight:700;border-top:1px solid var(--border);padding-top:4px;margin-top:2px}
+.cm-settle .neg{color:var(--red)}
+.cm-settle .pos{color:var(--green)}
+.mm-row{display:grid;grid-template-columns:1fr 140px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px}
+.mm-row .form-input{text-align:right;font-family:'DM Mono',monospace;padding:7px 9px;margin:0}
+.mm-hint,.mm-note{font-size:11px;color:var(--text3);margin:4px 0 8px;line-height:1.4}
+.mm-total{display:flex;justify-content:space-between;padding:10px 0 4px;font-weight:700}
 
 /* SAVINGS BAR */
 .savings-bar-wrap{margin-top:1rem;}
@@ -752,7 +776,16 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
     <!-- 2. Add expense -->
     <button class="add-expense-btn" id="addExpenseBtn">
       <span style="font-size:18px;line-height:1;">+</span><span>Add expense</span>
-    </button>
+    </button><button class="maria-btn" id="mariaBtn" title="Cargar el total por categoría de lo que gastó María este mes">🏠 Mes de María</button>
+    <!-- Casa vs Mío -->
+    <div class="card" id="casaMioCard">
+      <div class="cm-head"><div class="cm-title">Casa vs Mío</div><span class="cm-sub" id="cmMonth"></span></div>
+      <div class="cm-tiles">
+        <div class="cm-tile casa"><div class="k">🏠 La casa costó</div><div class="v" id="cmCasa">—</div><div class="s" id="cmCasaSub">—</div></div>
+        <div class="cm-tile mio"><div class="k">👤 Vos gastaste</div><div class="v" id="cmMio">—</div><div class="s" id="cmMioSub">—</div></div>
+      </div>
+      <div class="cm-settle" id="cmSettle"></div>
+    </div>
     <!-- Resumen del presupuesto variable vs meta del mes -->
     <div class="card" id="budgetSummaryCard">
       <div class="bsum-top">
@@ -1159,6 +1192,31 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
     <div class="modal-footer">
       <button class="btn-secondary" id="exCancel">Cancelar</button>
       <button class="btn-primary" id="exSubmit">Guardar gasto</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Cargar mes de María -->
+<div class="modal-overlay" id="mariaModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Cargar mes de María</div>
+      <button class="modal-close" id="mmClose">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label class="form-label">Mes</label>
+        <select class="form-input" id="mmMonth"></select>
+      </div>
+      <div class="mm-hint">Del resumen de su tarjeta: el total por categoría, no compra por compra. Dejá en blanco lo que no hubo. Todo entra como 🏠 Casa.</div>
+      <div id="mmRows"></div>
+      <div class="mm-total"><span>Total María</span><span class="mono" id="mmTotal">—</span></div>
+      <div class="mm-note" id="mmNote"></div>
+      <div class="form-error" id="mmError"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" id="mmCancel">Cancelar</button>
+      <button class="btn-primary" id="mmSave">Guardar</button>
     </div>
   </div>
 </div>
@@ -1832,6 +1890,113 @@ function recomputeBudgetsFor(monthKey,catsArg){
 }
 
 // ── RENDER ───────────────────────────────────────────────────
+// ══════════ CASA / MÍO — resumen del mes y carga de María ══════════
+const MARIA_SHARE=0.25; // parte de la casa que le toca a María (75/25)
+const MARIA_CATS=['Supermercados','Delivery','Mascotas','Hogar','Planes Maria','Otros'];
+const mariaLineName=c=>'María · '+c;
+function balLabelFor(k){const[y,m]=k.split('-').map(Number);return nwMonthLabel(y,m);}
+function balGetFor(row,k){try{const r=balData.rowMap[row];const l=balLabelFor(k);return r&&(l in r)?(parseFloat(r[l])||0):0;}catch(e){return 0;}}
+function casaMioSummary(k){
+  const alquiler=balGetFor('Alquiler',k);
+  const fixed=(fixedRows||[]).filter(r=>String(r.month_year).slice(0,7)===k&&!r.asset_name);
+  const fu=r=>parseFloat(r.amount_usd)||0;
+  const fijosTot=fixed.reduce((s,r)=>s+fu(r),0);
+  const fijosCasa=fixed.filter(r=>FIXED_ITEMS.includes(r.item_name)&&!FIXED_MIO_ITEMS.includes(r.item_name)).reduce((s,r)=>s+fu(r),0);
+  const fijosMio=fijosTot-fijosCasa;
+  const vars=monthVarData(k);
+  const sc=r=>r.scope||scopeForCat(r.cat);
+  const casaArs=vars.filter(r=>sc(r)==='casa').reduce((s,r)=>s+r.amt,0);
+  const mioArs=vars.filter(r=>sc(r)!=='casa').reduce((s,r)=>s+r.amt,0);
+  const mariaRows=vars.filter(r=>r.payer==='maria');
+  const mariaArs=mariaRows.reduce((s,r)=>s+r.amt,0);
+  const varUsd=balGetFor('Variables',k);
+  const totArs=casaArs+mioArs;
+  const varCasa=totArs?varUsd*casaArs/totArs:0;
+  const varMio=varUsd-varCasa;
+  const mariaUsd=totArs?varUsd*mariaArs/totArs:0;
+  const casa=alquiler+fijosCasa+varCasa;
+  const mio=fijosMio+varMio;
+  const share=casa*MARIA_SHARE;
+  const aporte=balGetFor('Aporte María',k);
+  return {alquiler,fijosCasa,fijosMio,varCasa,varMio,mariaUsd,mariaArs,mariaRows,casa,mio,share,aporte,diff:share-aporte,casaArs,mioArs,varUsd};
+}
+function renderCasaMio(k){
+  const el=document.getElementById('casaMioCard');if(!el)return;
+  const S=casaMioSummary(k);
+  const U=v=>'US$ '+Math.round(v).toLocaleString('es-AR');
+  document.getElementById('cmMonth').textContent=mnName(k)+' · en USD';
+  document.getElementById('cmCasa').textContent=U(S.casa);
+  document.getElementById('cmCasaSub').innerHTML='Alquiler '+U(S.alquiler).replace('US$ ','')+' · Fijos '+Math.round(S.fijosCasa).toLocaleString('es-AR')+' · Variables '+Math.round(S.varCasa-S.mariaUsd).toLocaleString('es-AR')+' · María '+Math.round(S.mariaUsd).toLocaleString('es-AR')+(S.mariaRows.length?'':' <span style="color:var(--red)">(sin cargar)</span>');
+  document.getElementById('cmMio').textContent=U(S.mio);
+  document.getElementById('cmMioSub').textContent='Variables '+Math.round(S.varMio).toLocaleString('es-AR')+' · Fijos '+Math.round(S.fijosMio).toLocaleString('es-AR')+' · extraordinarios aparte';
+  const d=S.diff;
+  document.getElementById('cmSettle').innerHTML=
+    '<span>A María le toca ('+Math.round(MARIA_SHARE*100)+'% de la casa)</span><span class="r">'+U(S.share)+'</span>'+
+    '<span>Aporte María recibido</span><span class="r">'+U(S.aporte)+'</span>'+
+    (Math.abs(d)<1?'<span class="tot">Saldado</span><span class="r tot pos">✓</span>':
+     d>0?'<span class="tot">Le falta pasarte</span><span class="r tot neg">'+U(d)+'</span>':
+          '<span class="tot">Te pasó de más</span><span class="r tot pos">'+U(-d)+'</span>');
+}
+// ── Modal "Cargar mes de María" ──
+let mmKey=null;
+function mariaMonthRows(k){return varRows.filter(r=>r.payer==='maria'&&mk(r.date)===k);}
+function openMariaModal(k){
+  const modal=document.getElementById('mariaModal');if(!modal)return;
+  const sel=document.getElementById('mmMonth');
+  const opts=(months||[]).filter(m=>m>=CUTOFF_DATE.slice(0,7));
+  sel.innerHTML=opts.map(m=>'<option value="'+m+'">'+mnName(m)+'</option>').join('');
+  if(!k){const t=new Date();k=homePrevKey(homeKey(t),1);}
+  if(!opts.includes(k))k=opts[opts.length-1]||k;
+  sel.value=k;mmKey=k;
+  sel.onchange=()=>{mmKey=sel.value;mmRender();};
+  mmRender();
+  document.getElementById('mmError').textContent='';
+  modal.classList.add('active');
+}
+function mmRender(){
+  const k=mmKey;const rows=mariaMonthRows(k);
+  const lineFor=c=>rows.find(r=>r.name===mariaLineName(c));
+  const others=rows.filter(r=>!MARIA_CATS.some(c=>r.name===mariaLineName(c)));
+  const ic=c=>catIcon(c);
+  document.getElementById('mmRows').innerHTML=MARIA_CATS.map(c=>{const l=lineFor(c);return '<div class="mm-row"><span>'+ic(c)+' '+(c==='Otros'?'Otros de la casa':c)+'</span><input type="number" class="form-input mm-in" data-cat="'+c+'" placeholder="—" min="0" step="1" value="'+(l?Math.round(l.amt):'')+'"></div>';}).join('');
+  const note=document.getElementById('mmNote');
+  note.textContent=others.length?('Además hay '+others.length+' compra'+(others.length>1?'s':'')+' de María cargada'+(others.length>1?'s':'')+' una por una (ARS '+Math.round(others.reduce((s,r)=>s+r.amt,0)).toLocaleString('es-AR')+'). No se tocan desde acá.'):'';
+  const upd=()=>{let t=0;document.querySelectorAll('#mmRows .mm-in').forEach(i=>t+=parseFloat(i.value)||0);document.getElementById('mmTotal').textContent='ARS '+Math.round(t).toLocaleString('es-AR');};
+  document.querySelectorAll('#mmRows .mm-in').forEach(i=>i.oninput=upd);upd();
+}
+function closeMariaModal(){const m=document.getElementById('mariaModal');if(m)m.classList.remove('active');}
+async function saveMaria(){
+  const btn=document.getElementById('mmSave');const err=document.getElementById('mmError');err.textContent='';
+  const k=mmKey;const rows=mariaMonthRows(k);
+  const vals={};document.querySelectorAll('#mmRows .mm-in').forEach(i=>{vals[i.dataset.cat]=parseFloat(i.value)||0;});
+  btn.disabled=true;btn.textContent='Guardando…';
+  try{
+    let fx=null;try{fx=await fetchBlueRate();}catch(e){}
+    if(!(fx>0)){const last=varRows.slice().reverse().find(r=>r.fx>0);fx=last?last.fx:1400;}
+    const date=homeLastDay(k);
+    for(const c of MARIA_CATS){
+      const amt=Math.round(vals[c]||0);
+      const ex=rows.find(r=>r.name===mariaLineName(c));
+      if(amt>0&&ex){
+        const{error}=await sb.from('expenses').update({amount:amt,amount_usd:Math.round(amt/(ex.fx>0?ex.fx:fx)*100)/100}).eq('id',ex.id);if(error)throw new Error(error.message);
+      }else if(amt>0){
+        const{error}=await sb.from('expenses').insert({date,name:mariaLineName(c),amount:amt,category:c,ars_per_usd:fx,amount_usd:Math.round(amt/fx*100)/100,scope:'casa',payer:'maria'});if(error)throw new Error(error.message);
+      }else if(ex){
+        const{error}=await sb.from('expenses').delete().eq('id',ex.id);if(error)throw new Error(error.message);
+      }
+    }
+    closeMariaModal();setStatus('✓ Mes de María guardado','ok');
+    await loadData();
+  }catch(e){err.textContent='Error: '+e.message;}
+  finally{btn.disabled=false;btn.textContent='Guardar';}
+}
+(function(){
+  const q=(id,fn)=>{const b=document.getElementById(id);if(b)b.onclick=fn;};
+  q('mariaBtn',()=>openMariaModal(months[curIdx]));
+  q('mmClose',closeMariaModal);q('mmCancel',closeMariaModal);q('mmSave',saveMaria);
+  const m=document.getElementById('mariaModal');if(m)m.onclick=e=>{if(e.target===m)closeMariaModal();};
+})();
+
 // ══════════ HOME — cierre del mes guiado ══════════
 let homeCierreOpen=null; // null = automático (abierto si hay pendientes); true/false = forzado por el usuario
 let homeBusyFlag=false;
@@ -1930,6 +2095,17 @@ function homeChecklist(k){
     const rows=homeVarRows(k);const n=rows.length;const ars=rows.reduce((s,r)=>s+(parseFloat(r.amt)||0),0);
     items.push({key:'var',label:'Gastos variables',st:n?'ok':'no',det:n?n+' gastos · '+homeFmtA(ars):'Sin gastos cargados',acts:n?[]:[{lbl:'+ Gasto',cls:'',fn:()=>homeOpenExpense()}]});
   }
+  // 8) Mes de María (líneas por categoría del resumen de su tarjeta)
+  {
+    const rows=mariaMonthRows(k);const ars=rows.reduce((s,r)=>s+r.amt,0);
+    items.push({key:'maria',label:'Mes de María',st:rows.length?'ok':'no',det:rows.length?homeFmtA(ars)+' · '+rows.length+(rows.length===1?' línea':' líneas'):'Sin cargar · del resumen de su tarjeta',acts:rows.length?[{lbl:'editar',cls:'quiet',fn:()=>openMariaModal(k)}]:[{lbl:'Cargar →',cls:'',fn:()=>openMariaModal(k)}]});
+  }
+  // 9) Aporte María (su 25% de la casa)
+  {
+    const rows=homeIncome(k,'Aporte María');const sum=homeIncomeSum(k,'Aporte María');
+    let share=0;try{share=casaMioSummary(k).share;}catch(e){}
+    items.push({key:'aporte',label:'Aporte María',st:rows.length?'ok':'no',det:rows.length?homeFmtU(sum)+' · '+homeDM(rows[rows.length-1].date)+(share?' · le tocaban '+homeFmtU(share):''):('Sin cargar'+(share?' · le tocan '+homeFmtU(share):'')),acts:rows.length?[]:[{lbl:'Cargar →',cls:'',fn:()=>homeOpenIncome()}]});
+  }
   return items;
 }
 // ── acciones ──
@@ -2013,7 +2189,8 @@ function renderHome(){
     if(open){
       html+='<div class="hc-list">'+items.map(rowHtml).join('')+'</div>';
       const hasOne=items.some(it=>it.acts.some(a=>a.one));
-      html+='<div class="hc-foot">'+(hasOne?'Los botones azules cargan con un toque el mismo valor del mes pasado. ':'')+'Airbnb varía cada mes, por eso abre el formulario.</div>';
+      let cm='';try{const S=casaMioSummary(k);cm='<div style="margin-bottom:4px">🏠 Casa '+homeFmtU(S.casa)+' · 👤 Mío '+homeFmtU(S.mio)+' · María le toca '+homeFmtU(S.share)+(S.aporte?' (aportó '+homeFmtU(S.aporte)+')':'')+'</div>';}catch(e){}
+      html+='<div class="hc-foot">'+cm+(hasOne?'Los botones azules cargan con un toque el mismo valor del mes pasado. ':'')+'Airbnb varía cada mes, por eso abre el formulario.</div>';
     }
     html+='</div>';
   }
@@ -2297,6 +2474,7 @@ function monthExtraData(k){return varRows.filter(r=>mk(r.date)===k&&r.cat==='Ext
 function groupByCat(rows){const m={};rows.forEach(r=>{m[r.cat]=(m[r.cat]||0)+r.amt;});return m;}
 
 function renderBudget(k){
+  try{renderCasaMio(k);}catch(e){console.warn('casaMio:',e);}
   const rows=monthVarData(k);
   const cats=groupByCat(rows);
   const sorted=Object.entries(cats).sort((a,b)=>b[1]-a[1]);
