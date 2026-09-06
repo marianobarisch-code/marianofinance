@@ -406,14 +406,25 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .bal-period-btn.active{background:var(--primary);color:#fff;border-color:var(--primary);}
 .txn-action-btn.danger:hover{color:var(--red);}
 .month-exp-card{max-width:780px;}
-.month-exp-row{display:grid;grid-template-columns:64px 1fr 110px 130px 56px;gap:10px;align-items:center;padding:7px 10px;font-size:13px;border-bottom:1px solid var(--border);}
+.month-exp-row{display:grid;grid-template-columns:64px 1fr 110px 130px 84px;gap:10px;align-items:center;padding:7px 10px;font-size:13px;border-bottom:1px solid var(--border);}
 .month-exp-row:nth-child(even){background:var(--surface2);}
 .month-exp-row.month-exp-head{background:transparent;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text3);letter-spacing:.04em;padding:6px 10px;border-bottom:2px solid var(--border);}
 .month-exp-date{font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);}
 .month-exp-name{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .month-exp-amt{font-family:'DM Mono',monospace;font-weight:500;text-align:right;}
 .month-exp-cat-badge{display:inline-block;font-size:10px;padding:2px 7px;border-radius:4px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
-.month-exp-actions{display:flex;justify-content:flex-end;gap:2px;}
+.month-exp-actions{display:flex;justify-content:flex-end;align-items:center;gap:2px;}
+/* ── Casa / Mío ── */
+.ex-scope-toggle{display:flex;gap:8px}
+.ex-scope-btn{flex:1;padding:9px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text2);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+.ex-scope-btn.active[data-scope="casa"]{background:#E9ECF9;color:#1F2F98;border-color:#1F2F98}
+.ex-scope-btn.active[data-scope="mio"]{background:var(--amber-bg);color:var(--amber);border-color:var(--amber)}
+.ex-scope-hint{font-size:11px;color:var(--text3);margin-top:5px}
+.scope-chip,.txn-action-btn.scope-chip{border:none;border-radius:999px;width:26px;height:22px;min-width:0;font-size:12px;line-height:22px;text-align:center;padding:0;cursor:pointer;display:inline-block;color:var(--text)}
+.scope-chip.casa,.txn-action-btn.scope-chip.casa{background:#E9ECF9}
+.scope-chip.mio,.txn-action-btn.scope-chip.mio{background:var(--amber-bg)}
+.scope-chip.static{cursor:default;opacity:.75}
+.scope-maria{font-size:9px;font-weight:700;color:var(--green);background:var(--green-bg);border-radius:4px;padding:1px 4px;margin-left:2px;line-height:1.4}
 
 /* SAVINGS BAR */
 .savings-bar-wrap{margin-top:1rem;}
@@ -1117,6 +1128,14 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
           <div class="combobox-list" id="exCatList"></div>
         </div>
       </div>
+      <div class="form-row" id="exScopeRow">
+        <label class="form-label">¿Para quién?</label>
+        <div class="ex-scope-toggle" id="exScopeToggle">
+          <button type="button" class="ex-scope-btn" data-scope="casa">🏠 Casa</button>
+          <button type="button" class="ex-scope-btn" data-scope="mio">👤 Mío</button>
+        </div>
+        <div class="ex-scope-hint">Se elige solo según la categoría. Tocá para cambiar.</div>
+      </div>
       <div class="form-row form-row-split">
         <div>
           <label class="form-label">Fecha</label>
@@ -1258,6 +1277,18 @@ const CUTOFF_DATE='2026-05-01'; // desde esta fecha (inclusive) los gastos viven
 const CATEGORIES=['Planes Amigos','Uber/Taxis','Planes Maria','Salud','Comidas','Café','Delivery','Estética','Actividad Física','Auto','Supermercados','Hogar','Planes Familia','Otros','Ropa','Suplementos','Eventos','Mascotas','Extraordinary'];
 const CAT_ICONS={'Supermercados':'🛒','Suplementos':'💊','Planes Familia':'👨‍👩‍👧','Planes Maria':'💑','Comidas':'🍽️','Auto':'🚗','Café':'☕','Planes Amigos':'🍻','Actividad Física':'🏋️','Estética':'💅','Salud':'🩺','Delivery':'🛵','Uber/Taxis':'🚕','Hogar':'🏠','Eventos':'🎉','Mascotas':'🐾','Ropa':'👕','Otros':'🎲','Extraordinary':'✨'};
 const catIcon=c=>CAT_ICONS[c]||'🎲';
+// ── Casa / Mío: para quién fue cada gasto (default por categoría; se guarda por gasto) ──
+const SCOPE_CASA_CATS=['Supermercados','Hogar','Mascotas','Planes Maria','Delivery'];
+const scopeForCat=c=>SCOPE_CASA_CATS.includes(c)?'casa':'mio';
+const FIXED_MIO_ITEMS=['Megatlon','Seguro','Patente']; // fijos que son Mío; el resto de los fijos y el alquiler son Casa
+function scopeChip(r){
+  if(!r||r.cat==='Extraordinary')return '';
+  const sc=r.scope||scopeForCat(r.cat);
+  const ico=sc==='casa'?'🏠':'👤';
+  const maria=r.payer==='maria'?'<span class="scope-maria" title="Cargado como gasto de María">M</span>':'';
+  if(r.id)return `<button class="txn-action-btn scope-chip ${sc}" data-act="scope" data-id="${r.id}" title="${sc==='casa'?'Casa · tocá para pasar a Mío':'Mío · tocá para pasar a Casa'}">${ico}</button>${maria}`;
+  return `<span class="scope-chip static ${sc}" title="${sc==='casa'?'Casa':'Mío'}">${ico}</span>${maria}`;
+}
 // ===== Income module config =====
 const INCOME_CUTOFF='2026-06-01'; // desde Junio los ingresos se cargan uno por uno en income_entries
 const INCOME_CATEGORIES=['Sueldo','Comisiones Storyly','Referidos','Aporte María'];
@@ -1305,11 +1336,11 @@ async function fetchSheet(range){
 }
 
 async function fetchSupabaseExpenses(){
-  const{data,error}=await sb.from('expenses').select('id,date,name,amount,category,ars_per_usd,amount_usd,subcategory,currency').gte('date',CUTOFF_DATE).order('date',{ascending:true});
+  const{data,error}=await sb.from('expenses').select('*').gte('date',CUTOFF_DATE).order('date',{ascending:true});
   if(error)throw new Error('Supabase: '+error.message);
   return(data||[]).map(r=>{
     const[y,m,d]=(r.date||'').split('-').map(Number);
-    return{id:r.id,date:new Date(y,m-1,d),name:(r.name||'').trim(),amt:parseFloat(r.amount)||0,amtUsd:parseFloat(r.amount_usd)||0,fx:parseFloat(r.ars_per_usd)||0,cat:(r.category||'').trim(),sub:(r.subcategory||'').trim(),cur:(r.currency||'USD')};
+    return{id:r.id,date:new Date(y,m-1,d),name:(r.name||'').trim(),amt:parseFloat(r.amount)||0,amtUsd:parseFloat(r.amount_usd)||0,fx:parseFloat(r.ars_per_usd)||0,cat:(r.category||'').trim(),sub:(r.subcategory||'').trim(),cur:(r.currency||'USD'),scope:r.scope||(r.category==='Extraordinary'?null:scopeForCat((r.category||'').trim())),payer:r.payer||'mariano'};
   }).filter(r=>r.date&&!isNaN(r.date.getTime()));
 }
 async function fetchSupabaseNetWorth(){
@@ -1424,7 +1455,7 @@ async function loadData(){
 function processVariables(vals,sbExpenses){
   const rows=vals[0]&&/fecha/i.test(String(vals[0][0]))?vals.slice(1):vals;
   const sheetRows=rows.map(r=>({date:parseDate(r[0]),name:(r[1]||'').trim(),amt:parseMoney(r[2]),cat:(r[3]||'').trim()}))
-    .filter(r=>r.date&&r.cat&&r.amt!==0&&r.date.getFullYear()>=2025);
+    .filter(r=>r.date&&r.cat&&r.amt!==0&&r.date.getFullYear()>=2025).map(r=>Object.assign(r,{scope:scopeForCat(r.cat),payer:'mariano'}));
   // Sheets = histórico hasta cutoff (exclusive). Supabase = desde cutoff (inclusive).
   const cutoff=new Date(CUTOFF_DATE+'T00:00:00');
   const sheetHistorical=sheetRows.filter(r=>r.date<cutoff);
@@ -2444,7 +2475,7 @@ function renderMonthExpensesList(k){
   }
   const header=`<div class="month-exp-row month-exp-head"><div>Fecha</div><div>Ítem</div><div style="text-align:right;">Monto</div><div>Categoría</div><div></div></div>`;
   const rows=all.map(r=>{
-    const acts=r.id?`<div class="month-exp-actions"><button class="txn-action-btn" data-act="edit" data-id="${r.id}" title="Editar">✏</button><button class="txn-action-btn danger" data-act="del" data-id="${r.id}" title="Borrar">🗑</button></div>`:'<div class="month-exp-actions"></div>';
+    const acts=`<div class="month-exp-actions">${scopeChip(r)}${r.id?`<button class="txn-action-btn" data-act="edit" data-id="${r.id}" title="Editar">✏</button><button class="txn-action-btn danger" data-act="del" data-id="${r.id}" title="Borrar">🗑</button>`:''}</div>`;
     const catColor=catColorMap[r.cat]||'#888';
     const catBadge=`<span class="month-exp-cat-badge" style="color:${catColor};background:${catColor}1a;">${r.cat}</span>`;
     return `<div class="month-exp-row"><div class="month-exp-date">${fmtDay(r.date)}</div><div class="month-exp-name" title="${r.name.replace(/"/g,'&quot;')}">${r.name}</div><div class="month-exp-amt">${fmtARS(r.amt)}</div><div>${catBadge}</div>${acts}</div>`;
@@ -3455,7 +3486,7 @@ function openDetail(cat){
   currentDetailCat=cat;
   document.getElementById('txnList').innerHTML=txns.length
     ?txns.map(r=>{
-      const acts=r.id?`<div class="txn-actions"><button class="txn-action-btn" data-act="edit" data-id="${r.id}" title="Editar">✏</button><button class="txn-action-btn danger" data-act="del" data-id="${r.id}" title="Borrar">🗑</button></div>`:'';
+      const acts=`<div class="txn-actions">${scopeChip(r)}${r.id?`<button class="txn-action-btn" data-act="edit" data-id="${r.id}" title="Editar">✏</button><button class="txn-action-btn danger" data-act="del" data-id="${r.id}" title="Borrar">🗑</button>`:''}</div>`;
       return `<div class="txn-item"><span class="txn-name">${r.name}</span><span class="txn-date">${fmtDay(r.date)}</span><span class="txn-amt">${fmtARS(r.amt)}</span>${acts}</div>`;
     }).join('')
     :'<div style="padding:1rem;text-align:center;color:var(--text3);font-size:13px;">Sin gastos este mes</div>';
@@ -3484,6 +3515,13 @@ document.getElementById('txnList').onclick=async e=>{
   const act=btn.dataset.act;
   const row=varRows.find(r=>r.id===id);
   if(!row){alert('No encuentro ese gasto.');return;}
+  if(act==='scope'){
+    const ns=(row.scope||scopeForCat(row.cat))==='casa'?'mio':'casa';
+    btn.disabled=true;
+    try{const{error}=await sb.from('expenses').update({scope:ns}).eq('id',id);if(error)throw new Error(error.message);await loadData();if(currentDetailCat)openDetail(currentDetailCat);}
+    catch(err){alert('Error: '+err.message);btn.disabled=false;}
+    return;
+  }
   if(act==='edit'){
     exOpenModal(row);
   }else if(act==='del'){
@@ -3504,6 +3542,13 @@ document.getElementById('monthExpensesList').onclick=async e=>{
   const act=btn.dataset.act;
   const row=varRows.find(r=>r.id===id);
   if(!row){alert('No encuentro ese gasto.');return;}
+  if(act==='scope'){
+    const ns=(row.scope||scopeForCat(row.cat))==='casa'?'mio':'casa';
+    btn.disabled=true;
+    try{const{error}=await sb.from('expenses').update({scope:ns}).eq('id',id);if(error)throw new Error(error.message);await loadData();if(currentDetailCat)openDetail(currentDetailCat);}
+    catch(err){alert('Error: '+err.message);btn.disabled=false;}
+    return;
+  }
   if(act==='edit'){
     exOpenModal(row);
   }else if(act==='del'){
@@ -4371,6 +4416,14 @@ let exCurrency='USD'; // moneda del gasto extraordinario en curso (ARS|USD)
 function exSyncCurToggle(){const t=document.getElementById('exCurToggle');if(t)t.querySelectorAll('.ex-cur-btn').forEach(b=>b.classList.toggle('active',b.dataset.cur===exCurrency));}
 function setExCurrency(c){exCurrency=(c==='ARS')?'ARS':'USD';exSyncCurToggle();}
 let exEditingId=null;
+let exScope='mio',exScopeTouched=false;
+const exScopeRow=document.getElementById('exScopeRow');
+function setExScope(sc){exScope=(sc==='casa')?'casa':'mio';document.querySelectorAll('#exScopeToggle .ex-scope-btn').forEach(b=>b.classList.toggle('active',b.dataset.scope===exScope));}
+function exApplyScopeDefault(cat){
+  if(exScopeRow)exScopeRow.style.display=(cat==='Extraordinary')?'none':'block';
+  if(!exScopeTouched)setExScope(scopeForCat(cat));
+}
+document.getElementById('exScopeToggle').addEventListener('click',e=>{const b=e.target.closest('.ex-scope-btn');if(!b)return;exScopeTouched=true;setExScope(b.dataset.scope);});
 let exEditingFx=null;
 
 async function exLoadFx(){
@@ -4410,6 +4463,8 @@ function exOpenModal(row){
     exFxDisplay.className='fx-display ok';
     exFxDisplay.textContent='TC original (no se modifica al editar): '+fmtFx(row.fx||0);
     exCurrentFx=row.fx||null;
+    exScopeTouched=true;setExScope(row.scope||scopeForCat(row.cat));
+    if(exScopeRow)exScopeRow.style.display=(row.cat==='Extraordinary')?'none':'block';
   }else{
     // Modo nuevo
     exEditingId=null;
@@ -4422,6 +4477,8 @@ function exOpenModal(row){
     exDateEl.value=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
     document.querySelector('#addExpenseModal .modal-title').textContent='Nuevo gasto';
     exSubmitBtn.textContent='Guardar gasto';
+    exScopeTouched=false;setExScope('mio');
+    if(exScopeRow)exScopeRow.style.display='block';
     exLoadFx();
   }
   exModal.classList.add('active');
@@ -4485,15 +4542,16 @@ exSubmitBtn.onclick=async()=>{
   if(!(exCurrentFx>0)){exErrorEl.textContent='Falta el tipo de cambio. Reintentá la API o ingresá uno manual.';return;}
   const ars_per_usd=exCurrentFx;
   const amount_usd=Math.round((amount/ars_per_usd)*100)/100;
+  const scope=exScopeTouched?exScope:scopeForCat(cat);
   const isEdit=!!exEditingId;
   exSubmitBtn.disabled=true;
   exSubmitBtn.textContent=isEdit?'Guardando cambios...':'Guardando...';
   try{
     if(isEdit){
-      const{error}=await sb.from('expenses').update({date,name,amount,category:cat,ars_per_usd,amount_usd}).eq('id',exEditingId);
+      const{error}=await sb.from('expenses').update({date,name,amount,category:cat,ars_per_usd,amount_usd,scope}).eq('id',exEditingId);
       if(error)throw new Error(error.message);
     }else{
-      const{error}=await sb.from('expenses').insert({date,name,amount,category:cat,ars_per_usd,amount_usd});
+      const{error}=await sb.from('expenses').insert({date,name,amount,category:cat,ars_per_usd,amount_usd,scope,payer:'mariano'});
       if(error)throw new Error(error.message);
     }
     exCloseModal();
@@ -4563,6 +4621,7 @@ document.getElementById('fixedSaveBtn').onclick=saveFixedExpenses;
     exCatSelected=cat;
     exCatCombo.classList.remove('open');
     handleExtraCatChange(cat);
+    exApplyScopeDefault(cat);
   };
 
   function handleExtraCatChange(cat){
