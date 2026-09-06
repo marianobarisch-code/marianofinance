@@ -1339,6 +1339,9 @@ const catIcon=c=>CAT_ICONS[c]||'🎲';
 const SCOPE_CASA_CATS=['Supermercados','Hogar','Mascotas','Planes Maria','Delivery'];
 const scopeForCat=c=>SCOPE_CASA_CATS.includes(c)?'casa':'mio';
 const FIXED_MIO_ITEMS=['Megatlon','Seguro','Patente']; // fijos que son Mío; el resto de los fijos y el alquiler son Casa
+// Si todavía no se corrió casa-mio.sql, la base no tiene las columnas scope/payer: detectar y reintentar sin ellas.
+const isMissingScopeCol=e=>/schema cache|column .*(scope|payer)/i.test(String((e&&e.message)||e||''));
+const SCOPE_SQL_HINT='Falta correr casa-mio.sql en Supabase (SQL Editor) para activar Casa/Mío.';
 function scopeChip(r){
   if(!r||r.cat==='Extraordinary')return '';
   const sc=r.scope||scopeForCat(r.cat);
@@ -1987,7 +1990,7 @@ async function saveMaria(){
     }
     closeMariaModal();setStatus('✓ Mes de María guardado','ok');
     await loadData();
-  }catch(e){err.textContent='Error: '+e.message;}
+  }catch(e){err.textContent=isMissingScopeCol(e)?SCOPE_SQL_HINT:('Error: '+e.message);}
   finally{btn.disabled=false;btn.textContent='Guardar';}
 }
 (function(){
@@ -3697,7 +3700,7 @@ document.getElementById('txnList').onclick=async e=>{
     const ns=(row.scope||scopeForCat(row.cat))==='casa'?'mio':'casa';
     btn.disabled=true;
     try{const{error}=await sb.from('expenses').update({scope:ns}).eq('id',id);if(error)throw new Error(error.message);await loadData();if(currentDetailCat)openDetail(currentDetailCat);}
-    catch(err){alert('Error: '+err.message);btn.disabled=false;}
+    catch(err){alert(isMissingScopeCol(err)?SCOPE_SQL_HINT:('Error: '+err.message));btn.disabled=false;}
     return;
   }
   if(act==='edit'){
@@ -3724,7 +3727,7 @@ document.getElementById('monthExpensesList').onclick=async e=>{
     const ns=(row.scope||scopeForCat(row.cat))==='casa'?'mio':'casa';
     btn.disabled=true;
     try{const{error}=await sb.from('expenses').update({scope:ns}).eq('id',id);if(error)throw new Error(error.message);await loadData();if(currentDetailCat)openDetail(currentDetailCat);}
-    catch(err){alert('Error: '+err.message);btn.disabled=false;}
+    catch(err){alert(isMissingScopeCol(err)?SCOPE_SQL_HINT:('Error: '+err.message));btn.disabled=false;}
     return;
   }
   if(act==='edit'){
@@ -4726,10 +4729,12 @@ exSubmitBtn.onclick=async()=>{
   exSubmitBtn.textContent=isEdit?'Guardando cambios...':'Guardando...';
   try{
     if(isEdit){
-      const{error}=await sb.from('expenses').update({date,name,amount,category:cat,ars_per_usd,amount_usd,scope}).eq('id',exEditingId);
+      let{error}=await sb.from('expenses').update({date,name,amount,category:cat,ars_per_usd,amount_usd,scope}).eq('id',exEditingId);
+      if(error&&isMissingScopeCol(error)){({error}=await sb.from('expenses').update({date,name,amount,category:cat,ars_per_usd,amount_usd}).eq('id',exEditingId));if(!error)setStatus('Guardado sin Casa/Mío · '+SCOPE_SQL_HINT,'loading');}
       if(error)throw new Error(error.message);
     }else{
-      const{error}=await sb.from('expenses').insert({date,name,amount,category:cat,ars_per_usd,amount_usd,scope,payer:'mariano'});
+      let{error}=await sb.from('expenses').insert({date,name,amount,category:cat,ars_per_usd,amount_usd,scope,payer:'mariano'});
+      if(error&&isMissingScopeCol(error)){({error}=await sb.from('expenses').insert({date,name,amount,category:cat,ars_per_usd,amount_usd}));if(!error)setStatus('Guardado sin Casa/Mío · '+SCOPE_SQL_HINT,'loading');}
       if(error)throw new Error(error.message);
     }
     exCloseModal();
