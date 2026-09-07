@@ -87,8 +87,8 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:.
 .hl-l{display:flex;gap:8px;align-items:center;font-size:13px;}
 .hl-l .hc-st{width:14px;height:14px;font-size:9px;}
 .hl-l .hc-det{margin-left:auto;text-align:right;}
-.home-quick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
-.hq{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 6px;text-align:center;font-size:11px;font-weight:600;color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif;}
+.home-quick{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;}
+.hq{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 4px;text-align:center;font-size:10.5px;line-height:1.2;font-weight:600;color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif;}
 .hq:hover{border-color:var(--primary);color:var(--text);}
 .hq .i{font-size:18px;display:block;margin-bottom:2px;}
 
@@ -449,6 +449,10 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .mm-row .form-input{text-align:right;font-family:'DM Mono',monospace;padding:7px 9px;margin:0}
 .mm-hint,.mm-note{font-size:11px;color:var(--text3);margin:4px 0 8px;line-height:1.4}
 .mm-total{display:flex;justify-content:space-between;padding:10px 0 4px;font-weight:700}
+.mm-sec{margin:10px 0 4px;padding:10px 12px;background:var(--surface2);border-radius:10px}
+.mm-sec-t{font-size:12px;font-weight:700;margin-bottom:2px}
+.mm-sec .mm-row{border-bottom-color:var(--border)}
+.mm-sub{display:flex;justify-content:space-between;font-size:12px;color:var(--text2);padding-top:6px}
 
 /* SAVINGS BAR */
 .savings-bar-wrap{margin-top:1rem;}
@@ -669,10 +673,19 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
   <div class="tab-panel active" id="tab-home">
     <div class="home-hello"><span class="home-h">Hola, Mariano</span><span class="home-d" id="homeDate"></span></div>
     <div id="homeCierre"></div>
+    <div class="card" id="casaMioCard" style="margin-bottom:12px;">
+      <div class="cm-head"><div class="cm-title">Casa vs Personal</div><span class="cm-sub" id="cmMonth"></span></div>
+      <div class="cm-tiles">
+        <div class="cm-tile casa"><div class="k">🏠 La casa costó</div><div class="v" id="cmCasa">—</div><div class="s" id="cmCasaSub">—</div></div>
+        <div class="cm-tile mio"><div class="k">👤 Personal (vos)</div><div class="v" id="cmMio">—</div><div class="s" id="cmMioSub">—</div></div>
+      </div>
+      <div class="cm-settle" id="cmSettle"></div>
+    </div>
     <div id="homeLive"></div>
     <div class="home-quick">
       <button class="hq" id="hqGasto"><span class="i">＋</span>Gasto</button>
       <button class="hq" id="hqIngreso"><span class="i">💵</span>Ingreso</button>
+      <button class="hq" id="hqMaria"><span class="i">🏠</span>Mes de María</button>
       <button class="hq" id="hqFijos"><span class="i">📅</span>Fijos</button>
       <button class="hq" id="hqNw"><span class="i">🏦</span>Net Worth</button>
     </div>
@@ -776,16 +789,7 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
     <!-- 2. Add expense -->
     <button class="add-expense-btn" id="addExpenseBtn">
       <span style="font-size:18px;line-height:1;">+</span><span>Add expense</span>
-    </button><button class="maria-btn" id="mariaBtn" title="Cargar el total por categoría de lo que gastó María este mes">🏠 Mes de María</button>
-    <!-- Casa vs Mío -->
-    <div class="card" id="casaMioCard">
-      <div class="cm-head"><div class="cm-title">Casa vs Mío</div><span class="cm-sub" id="cmMonth"></span></div>
-      <div class="cm-tiles">
-        <div class="cm-tile casa"><div class="k">🏠 La casa costó</div><div class="v" id="cmCasa">—</div><div class="s" id="cmCasaSub">—</div></div>
-        <div class="cm-tile mio"><div class="k">👤 Vos gastaste</div><div class="v" id="cmMio">—</div><div class="s" id="cmMioSub">—</div></div>
-      </div>
-      <div class="cm-settle" id="cmSettle"></div>
-    </div>
+    </button>
     <!-- Resumen del presupuesto variable vs meta del mes -->
     <div class="card" id="budgetSummaryCard">
       <div class="bsum-top">
@@ -1165,7 +1169,7 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
         <label class="form-label">¿Para quién?</label>
         <div class="ex-scope-toggle" id="exScopeToggle">
           <button type="button" class="ex-scope-btn" data-scope="casa">🏠 Casa</button>
-          <button type="button" class="ex-scope-btn" data-scope="mio">👤 Mío</button>
+          <button type="button" class="ex-scope-btn" data-scope="mio">👤 Personal</button>
         </div>
         <div class="ex-scope-hint">Se elige solo según la categoría. Tocá para cambiar.</div>
       </div>
@@ -1208,7 +1212,7 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
         <label class="form-label">Mes</label>
         <select class="form-input" id="mmMonth"></select>
       </div>
-      <div class="mm-hint">Del resumen de su tarjeta: el total por categoría, no compra por compra. Dejá en blanco lo que no hubo. Todo entra como 🏠 Casa.</div>
+      <div class="mm-hint">Total por categoría, no compra por compra. Dejá en blanco lo que no hubo. Todo entra como 🏠 Casa.</div>
       <div id="mmRows"></div>
       <div class="mm-total"><span>Total María</span><span class="mono" id="mmTotal">—</span></div>
       <div class="mm-note" id="mmNote"></div>
@@ -1341,14 +1345,15 @@ const scopeForCat=c=>SCOPE_CASA_CATS.includes(c)?'casa':'mio';
 const FIXED_MIO_ITEMS=['Megatlon','Seguro','Patente']; // fijos que son Mío; el resto de los fijos y el alquiler son Casa
 // Si todavía no se corrió casa-mio.sql, la base no tiene las columnas scope/payer: detectar y reintentar sin ellas.
 const isMissingScopeCol=e=>/schema cache|column .*(scope|payer)/i.test(String((e&&e.message)||e||''));
-const SCOPE_SQL_HINT='Falta correr casa-mio.sql en Supabase (SQL Editor) para activar Casa/Mío.';
+const SCOPE_SQL_HINT='Falta correr casa-mio.sql en Supabase (SQL Editor) para activar Casa/Personal.';
 function scopeChip(r){
   if(!r||r.cat==='Extraordinary')return '';
   const sc=r.scope||scopeForCat(r.cat);
   const ico=sc==='casa'?'🏠':'👤';
-  const maria=r.payer==='maria'?'<span class="scope-maria" title="Cargado como gasto de María">M</span>':'';
-  if(r.id)return `<button class="txn-action-btn scope-chip ${sc}" data-act="scope" data-id="${r.id}" title="${sc==='casa'?'Casa · tocá para pasar a Mío':'Mío · tocá para pasar a Casa'}">${ico}</button>${maria}`;
-  return `<span class="scope-chip static ${sc}" title="${sc==='casa'?'Casa':'Mío'}">${ico}</span>${maria}`;
+  const isMaria=r.payer==='maria'||/^María\b/.test(r.name||'');
+  const maria=isMaria?'<span class="scope-maria" title="'+(r.payer==='maria'?'Lo pagó María de su plata':'Compra de María con tu tarjeta')+'">M</span>':'';
+  if(r.id)return `<button class="txn-action-btn scope-chip ${sc}" data-act="scope" data-id="${r.id}" title="${sc==='casa'?'Casa · tocá para pasar a Personal':'Personal · tocá para pasar a Casa'}">${ico}</button>${maria}`;
+  return `<span class="scope-chip static ${sc}" title="${sc==='casa'?'Casa':'Personal'}">${ico}</span>${maria}`;
 }
 // ===== Income module config =====
 const INCOME_CUTOFF='2026-06-01'; // desde Junio los ingresos se cargan uno por uno en income_entries
@@ -1607,8 +1612,9 @@ function overlaySupabaseVariables(){
     if(monthStart<cutoff)continue;
     // Es post-cutoff: recalcular Variables en USD desde varRows
     const monthKey=year+'-'+String(monthIdx+1).padStart(2,'0');
-    const variablesUsd=varRows.filter(r=>mk(r.date)===monthKey&&r.cat!=='Extraordinary').reduce((s,r)=>s+(r.amtUsd||0),0);
-    const extraUsd=varRows.filter(r=>mk(r.date)===monthKey&&r.cat==='Extraordinary').reduce((s,r)=>s+(r.amtUsd||0),0);
+    // Lo que María paga de su plata (payer='maria') es costo de la casa pero NO egreso tuyo: se descuenta de su 25% en el reparto
+    const variablesUsd=varRows.filter(r=>mk(r.date)===monthKey&&r.cat!=='Extraordinary'&&r.payer!=='maria').reduce((s,r)=>s+(r.amtUsd||0),0);
+    const extraUsd=varRows.filter(r=>mk(r.date)===monthKey&&r.cat==='Extraordinary'&&r.payer!=='maria').reduce((s,r)=>s+(r.amtUsd||0),0);
     if(!balData.rowMap['Extraordinary Expenses'])balData.rowMap['Extraordinary Expenses']={};
     balData.rowMap['Extraordinary Expenses'][monthLabel]=extraUsd;
     if(!balData.rowMap['Variables'])balData.rowMap['Variables']={};
@@ -1896,7 +1902,13 @@ function recomputeBudgetsFor(monthKey,catsArg){
 // ══════════ CASA / MÍO — resumen del mes y carga de María ══════════
 const MARIA_SHARE=0.25; // parte de la casa que le toca a María (75/25)
 const MARIA_CATS=['Supermercados','Delivery','Mascotas','Hogar','Planes Maria','Otros'];
-const mariaLineName=c=>'María · '+c;
+// Dos tipos de líneas de María: con TU tarjeta (la pagaste vos) y de SU plata (la pagó ella: se descuenta de su 25%)
+const MARIA_KINDS=[
+  {kind:'card',prefix:'María · ',payer:'mariano',title:'Con tu tarjeta (lo pagaste vos)',hint:'Del resumen de tu tarjeta adicional. Total por categoría.'},
+  {kind:'own',prefix:'María paga · ',payer:'maria',title:'De su plata (lo pagó ella)',hint:'Cosas de la casa que pagó María con su plata: empleada doméstica → Hogar, etc. Se descuentan de su 25%.'}
+];
+const mariaLineName=(kind,c)=>MARIA_KINDS.find(x=>x.kind===kind).prefix+c;
+const isMariaRow=r=>r.payer==='maria'||/^María\b/.test(r.name||'');
 function balLabelFor(k){const[y,m]=k.split('-').map(Number);return nwMonthLabel(y,m);}
 function balGetFor(row,k){try{const r=balData.rowMap[row];const l=balLabelFor(k);return r&&(l in r)?(parseFloat(r[l])||0):0;}catch(e){return 0;}}
 function casaMioSummary(k){
@@ -1908,41 +1920,47 @@ function casaMioSummary(k){
   const fijosMio=fijosTot-fijosCasa;
   const vars=monthVarData(k);
   const sc=r=>r.scope||scopeForCat(r.cat);
-  const casaArs=vars.filter(r=>sc(r)==='casa').reduce((s,r)=>s+r.amt,0);
-  const mioArs=vars.filter(r=>sc(r)!=='casa').reduce((s,r)=>s+r.amt,0);
-  const mariaRows=vars.filter(r=>r.payer==='maria');
-  const mariaArs=mariaRows.reduce((s,r)=>s+r.amt,0);
-  const varUsd=balGetFor('Variables',k);
-  const totArs=casaArs+mioArs;
-  const varCasa=totArs?varUsd*casaArs/totArs:0;
-  const varMio=varUsd-varCasa;
-  const mariaUsd=totArs?varUsd*mariaArs/totArs:0;
+  // USD por fila: directo si la fila lo tiene (Supabase); si no (histórico Sheets), prorrateo de la fila Variables de I&S
+  const totArs=vars.reduce((s,r)=>s+r.amt,0);
+  const hasUsd=vars.length>0&&vars.every(r=>(r.amtUsd||0)>0);
+  const varUsdRow=balGetFor('Variables',k);
+  const usd=r=>hasUsd?(r.amtUsd||0):(totArs?varUsdRow*r.amt/totArs:0);
+  const sum=rows=>rows.reduce((s,r)=>s+usd(r),0);
+  const casaRows=vars.filter(r=>sc(r)==='casa'),mioRows=vars.filter(r=>sc(r)!=='casa');
+  const mariaCardRows=vars.filter(r=>r.payer!=='maria'&&/^María · /.test(r.name||''));
+  const mariaOwnRows=vars.filter(r=>r.payer==='maria');
+  const varCasa=sum(casaRows),varMio=sum(mioRows);
+  const mariaCardUsd=sum(mariaCardRows),mariaOwnUsd=sum(mariaOwnRows);
   const casa=alquiler+fijosCasa+varCasa;
   const mio=fijosMio+varMio;
-  const share=casa*MARIA_SHARE;
+  const share=casa*MARIA_SHARE;           // lo que le toca a María
+  const owes=share-mariaOwnUsd;           // menos lo que ya puso de su plata
   const aporte=balGetFor('Aporte María',k);
-  return {alquiler,fijosCasa,fijosMio,varCasa,varMio,mariaUsd,mariaArs,mariaRows,casa,mio,share,aporte,diff:share-aporte,casaArs,mioArs,varUsd};
+  return {alquiler,fijosCasa,fijosMio,varCasa,varMio,casa,mio,share,owes,aporte,diff:owes-aporte,
+          mariaCardUsd,mariaOwnUsd,mariaCardArs:mariaCardRows.reduce((s,r)=>s+r.amt,0),mariaOwnArs:mariaOwnRows.reduce((s,r)=>s+r.amt,0),
+          mariaCardRows,mariaOwnRows,mariaRows:mariaCardRows.concat(mariaOwnRows)};
 }
 function renderCasaMio(k){
   const el=document.getElementById('casaMioCard');if(!el)return;
   const S=casaMioSummary(k);
-  const U=v=>'US$ '+Math.round(v).toLocaleString('es-AR');
+  const U=v=>'US$ '+Math.round(v).toLocaleString('es-AR');const N=v=>Math.round(v).toLocaleString('es-AR');
   document.getElementById('cmMonth').textContent=mnName(k)+' · en USD';
   document.getElementById('cmCasa').textContent=U(S.casa);
-  document.getElementById('cmCasaSub').innerHTML='Alquiler '+U(S.alquiler).replace('US$ ','')+' · Fijos '+Math.round(S.fijosCasa).toLocaleString('es-AR')+' · Variables '+Math.round(S.varCasa-S.mariaUsd).toLocaleString('es-AR')+' · María '+Math.round(S.mariaUsd).toLocaleString('es-AR')+(S.mariaRows.length?'':' <span style="color:var(--red)">(sin cargar)</span>');
+  document.getElementById('cmCasaSub').innerHTML='Alquiler '+N(S.alquiler)+' · Fijos '+N(S.fijosCasa)+' · Variables '+N(S.varCasa-S.mariaCardUsd-S.mariaOwnUsd)+' · María '+N(S.mariaCardUsd+S.mariaOwnUsd)+(S.mariaRows.length?'':' <span style="color:var(--red)">(sin cargar)</span>');
   document.getElementById('cmMio').textContent=U(S.mio);
-  document.getElementById('cmMioSub').textContent='Variables '+Math.round(S.varMio).toLocaleString('es-AR')+' · Fijos '+Math.round(S.fijosMio).toLocaleString('es-AR')+' · extraordinarios aparte';
+  document.getElementById('cmMioSub').textContent='Variables '+N(S.varMio)+' · Fijos '+N(S.fijosMio)+' · extraordinarios aparte';
   const d=S.diff;
   document.getElementById('cmSettle').innerHTML=
     '<span>A María le toca ('+Math.round(MARIA_SHARE*100)+'% de la casa)</span><span class="r">'+U(S.share)+'</span>'+
-    '<span>Aporte María recibido</span><span class="r">'+U(S.aporte)+'</span>'+
+    (S.mariaOwnUsd>0?'<span>Ya puso de su plata</span><span class="r">− '+U(S.mariaOwnUsd)+'</span>':'')+
+    '<span>Aporte María recibido</span><span class="r">− '+U(S.aporte)+'</span>'+
     (Math.abs(d)<1?'<span class="tot">Saldado</span><span class="r tot pos">✓</span>':
      d>0?'<span class="tot">Le falta pasarte</span><span class="r tot neg">'+U(d)+'</span>':
           '<span class="tot">Te pasó de más</span><span class="r tot pos">'+U(-d)+'</span>');
 }
-// ── Modal "Cargar mes de María" ──
+// ── Modal "Cargar mes de María" (dos secciones: tu tarjeta / su plata) ──
 let mmKey=null;
-function mariaMonthRows(k){return varRows.filter(r=>r.payer==='maria'&&mk(r.date)===k);}
+function mariaMonthRows(k){return varRows.filter(r=>isMariaRow(r)&&mk(r.date)===k);}
 function openMariaModal(k){
   const modal=document.getElementById('mariaModal');if(!modal)return;
   const sel=document.getElementById('mmMonth');
@@ -1958,34 +1976,43 @@ function openMariaModal(k){
 }
 function mmRender(){
   const k=mmKey;const rows=mariaMonthRows(k);
-  const lineFor=c=>rows.find(r=>r.name===mariaLineName(c));
-  const others=rows.filter(r=>!MARIA_CATS.some(c=>r.name===mariaLineName(c)));
-  const ic=c=>catIcon(c);
-  document.getElementById('mmRows').innerHTML=MARIA_CATS.map(c=>{const l=lineFor(c);return '<div class="mm-row"><span>'+ic(c)+' '+(c==='Otros'?'Otros de la casa':c)+'</span><input type="number" class="form-input mm-in" data-cat="'+c+'" placeholder="—" min="0" step="1" value="'+(l?Math.round(l.amt):'')+'"></div>';}).join('');
+  const lineFor=(kind,c)=>rows.find(r=>r.name===mariaLineName(kind,c));
+  const managed=new Set(MARIA_KINDS.flatMap(x=>MARIA_CATS.map(c=>x.prefix+c)));
+  const others=rows.filter(r=>!managed.has(r.name));
+  let html='';
+  MARIA_KINDS.forEach(x=>{
+    html+='<div class="mm-sec"><div class="mm-sec-t">'+(x.kind==='card'?'💳':'👛')+' '+x.title+'</div><div class="mm-hint">'+x.hint+'</div>';
+    html+=MARIA_CATS.map(c=>{const l=lineFor(x.kind,c);return '<div class="mm-row"><span>'+catIcon(c)+' '+(c==='Otros'?'Otros de la casa':c)+'</span><input type="number" class="form-input mm-in" data-kind="'+x.kind+'" data-cat="'+c+'" placeholder="—" min="0" step="1" value="'+(l?Math.round(l.amt):'')+'"></div>';}).join('');
+    html+='<div class="mm-sub"><span>Subtotal</span><span class="mono" data-sub="'+x.kind+'">—</span></div></div>';
+  });
+  document.getElementById('mmRows').innerHTML=html;
   const note=document.getElementById('mmNote');
   note.textContent=others.length?('Además hay '+others.length+' compra'+(others.length>1?'s':'')+' de María cargada'+(others.length>1?'s':'')+' una por una (ARS '+Math.round(others.reduce((s,r)=>s+r.amt,0)).toLocaleString('es-AR')+'). No se tocan desde acá.'):'';
-  const upd=()=>{let t=0;document.querySelectorAll('#mmRows .mm-in').forEach(i=>t+=parseFloat(i.value)||0);document.getElementById('mmTotal').textContent='ARS '+Math.round(t).toLocaleString('es-AR');};
+  const upd=()=>{let t=0;MARIA_KINDS.forEach(x=>{let st=0;document.querySelectorAll('#mmRows .mm-in[data-kind="'+x.kind+'"]').forEach(i=>st+=parseFloat(i.value)||0);const e=document.querySelector('#mmRows [data-sub="'+x.kind+'"]');if(e)e.textContent='ARS '+Math.round(st).toLocaleString('es-AR');t+=st;});document.getElementById('mmTotal').textContent='ARS '+Math.round(t).toLocaleString('es-AR');};
   document.querySelectorAll('#mmRows .mm-in').forEach(i=>i.oninput=upd);upd();
 }
 function closeMariaModal(){const m=document.getElementById('mariaModal');if(m)m.classList.remove('active');}
 async function saveMaria(){
   const btn=document.getElementById('mmSave');const err=document.getElementById('mmError');err.textContent='';
   const k=mmKey;const rows=mariaMonthRows(k);
-  const vals={};document.querySelectorAll('#mmRows .mm-in').forEach(i=>{vals[i.dataset.cat]=parseFloat(i.value)||0;});
   btn.disabled=true;btn.textContent='Guardando…';
   try{
     let fx=null;try{fx=await fetchBlueRate();}catch(e){}
     if(!(fx>0)){const last=varRows.slice().reverse().find(r=>r.fx>0);fx=last?last.fx:1400;}
     const date=homeLastDay(k);
-    for(const c of MARIA_CATS){
-      const amt=Math.round(vals[c]||0);
-      const ex=rows.find(r=>r.name===mariaLineName(c));
-      if(amt>0&&ex){
-        const{error}=await sb.from('expenses').update({amount:amt,amount_usd:Math.round(amt/(ex.fx>0?ex.fx:fx)*100)/100}).eq('id',ex.id);if(error)throw new Error(error.message);
-      }else if(amt>0){
-        const{error}=await sb.from('expenses').insert({date,name:mariaLineName(c),amount:amt,category:c,ars_per_usd:fx,amount_usd:Math.round(amt/fx*100)/100,scope:'casa',payer:'maria'});if(error)throw new Error(error.message);
-      }else if(ex){
-        const{error}=await sb.from('expenses').delete().eq('id',ex.id);if(error)throw new Error(error.message);
+    for(const x of MARIA_KINDS){
+      for(const c of MARIA_CATS){
+        const inp=document.querySelector('#mmRows .mm-in[data-kind="'+x.kind+'"][data-cat="'+c+'"]');
+        const amt=Math.round(parseFloat(inp&&inp.value)||0);
+        const name=mariaLineName(x.kind,c);
+        const ex=rows.find(r=>r.name===name);
+        if(amt>0&&ex){
+          const{error}=await sb.from('expenses').update({amount:amt,amount_usd:Math.round(amt/(ex.fx>0?ex.fx:fx)*100)/100}).eq('id',ex.id);if(error)throw new Error(error.message);
+        }else if(amt>0){
+          const{error}=await sb.from('expenses').insert({date,name,amount:amt,category:c,ars_per_usd:fx,amount_usd:Math.round(amt/fx*100)/100,scope:'casa',payer:x.payer});if(error)throw new Error(error.message);
+        }else if(ex){
+          const{error}=await sb.from('expenses').delete().eq('id',ex.id);if(error)throw new Error(error.message);
+        }
       }
     }
     closeMariaModal();setStatus('✓ Mes de María guardado','ok');
@@ -1995,7 +2022,7 @@ async function saveMaria(){
 }
 (function(){
   const q=(id,fn)=>{const b=document.getElementById(id);if(b)b.onclick=fn;};
-  q('mariaBtn',()=>openMariaModal(months[curIdx]));
+  q('hqMaria',()=>openMariaModal());
   q('mmClose',closeMariaModal);q('mmCancel',closeMariaModal);q('mmSave',saveMaria);
   const m=document.getElementById('mariaModal');if(m)m.onclick=e=>{if(e.target===m)closeMariaModal();};
 })();
@@ -2100,14 +2127,14 @@ function homeChecklist(k){
   }
   // 8) Mes de María (líneas por categoría del resumen de su tarjeta)
   {
-    const rows=mariaMonthRows(k);const ars=rows.reduce((s,r)=>s+r.amt,0);
-    items.push({key:'maria',label:'Mes de María',st:rows.length?'ok':'no',det:rows.length?homeFmtA(ars)+' · '+rows.length+(rows.length===1?' línea':' líneas'):'Sin cargar · del resumen de su tarjeta',acts:rows.length?[{lbl:'editar',cls:'quiet',fn:()=>openMariaModal(k)}]:[{lbl:'Cargar →',cls:'',fn:()=>openMariaModal(k)}]});
+    const rows=mariaMonthRows(k);const card=rows.filter(r=>r.payer!=='maria').reduce((s,r)=>s+r.amt,0);const own=rows.filter(r=>r.payer==='maria').reduce((s,r)=>s+r.amt,0);
+    items.push({key:'maria',label:'Mes de María',st:rows.length?'ok':'no',det:rows.length?('tu tarjeta '+homeFmtA(card)+' · su plata '+homeFmtA(own)):'Sin cargar · tu tarjeta y su plata',acts:rows.length?[{lbl:'editar',cls:'quiet',fn:()=>openMariaModal(k)}]:[{lbl:'Cargar →',cls:'',fn:()=>openMariaModal(k)}]});
   }
   // 9) Aporte María (su 25% de la casa)
   {
     const rows=homeIncome(k,'Aporte María');const sum=homeIncomeSum(k,'Aporte María');
-    let share=0;try{share=casaMioSummary(k).share;}catch(e){}
-    items.push({key:'aporte',label:'Aporte María',st:rows.length?'ok':'no',det:rows.length?homeFmtU(sum)+' · '+homeDM(rows[rows.length-1].date)+(share?' · le tocaban '+homeFmtU(share):''):('Sin cargar'+(share?' · le tocan '+homeFmtU(share):'')),acts:rows.length?[]:[{lbl:'Cargar →',cls:'',fn:()=>homeOpenIncome()}]});
+    let owes=0;try{owes=casaMioSummary(k).owes;}catch(e){}
+    items.push({key:'aporte',label:'Aporte María',st:rows.length?'ok':'no',det:rows.length?homeFmtU(sum)+' · '+homeDM(rows[rows.length-1].date)+(owes?' · le tocaban '+homeFmtU(owes):''):('Sin cargar'+(owes?' · le tocan '+homeFmtU(owes):'')),acts:rows.length?[]:[{lbl:'Cargar →',cls:'',fn:()=>homeOpenIncome()}]});
   }
   return items;
 }
@@ -2192,12 +2219,13 @@ function renderHome(){
     if(open){
       html+='<div class="hc-list">'+items.map(rowHtml).join('')+'</div>';
       const hasOne=items.some(it=>it.acts.some(a=>a.one));
-      let cm='';try{const S=casaMioSummary(k);cm='<div style="margin-bottom:4px">🏠 Casa '+homeFmtU(S.casa)+' · 👤 Mío '+homeFmtU(S.mio)+' · María le toca '+homeFmtU(S.share)+(S.aporte?' (aportó '+homeFmtU(S.aporte)+')':'')+'</div>';}catch(e){}
+      let cm='';try{const S=casaMioSummary(k);cm='<div style="margin-bottom:4px">🏠 Casa '+homeFmtU(S.casa)+' · 👤 Personal '+homeFmtU(S.mio)+' · María le toca '+homeFmtU(S.owes)+(S.aporte?' (aportó '+homeFmtU(S.aporte)+')':'')+'</div>';}catch(e){}
       html+='<div class="hc-foot">'+cm+(hasOne?'Los botones azules cargan con un toque el mismo valor del mes pasado. ':'')+'Airbnb varía cada mes, por eso abre el formulario.</div>';
     }
     html+='</div>';
   }
   el.innerHTML=html;
+  try{renderCasaMio(k);}catch(e){console.warn('casaMio:',e);}
   const tg=document.getElementById('hcToggle');if(tg)tg.onclick=()=>{homeCierreOpen=!open;renderHome();};
   el.querySelectorAll('.hc-go').forEach(b=>b.onclick=()=>{const a=items[+b.dataset.i].acts[+b.dataset.j];if(!a)return;if(a.one)homeRun(b,a.fn);else a.fn();});
   const live=document.getElementById('homeLive');if(live)live.innerHTML=homeLiveHtml(today);
@@ -2477,7 +2505,6 @@ function monthExtraData(k){return varRows.filter(r=>mk(r.date)===k&&r.cat==='Ext
 function groupByCat(rows){const m={};rows.forEach(r=>{m[r.cat]=(m[r.cat]||0)+r.amt;});return m;}
 
 function renderBudget(k){
-  try{renderCasaMio(k);}catch(e){console.warn('casaMio:',e);}
   const rows=monthVarData(k);
   const cats=groupByCat(rows);
   const sorted=Object.entries(cats).sort((a,b)=>b[1]-a[1]);
