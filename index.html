@@ -1367,6 +1367,10 @@ function scopeChip(r){
 const INCOME_CUTOFF='2026-06-01'; // desde Junio los ingresos se cargan uno por uno en income_entries
 const INCOME_CATEGORIES=['Sueldo','Comisiones Storyly','Referidos','Aporte María'];
 const INCOME_PASSIVE_SUBCATS=['QUEM','Littio','Airbnb'];
+const INCOME_APORTE_SUBCATS=['Mensual','Extraordinario']; // Aporte María: el pago del mes vs. algo puntual (viaje, etc.)
+const INCOME_SUBCATS_BY_CAT={'Passive Income':INCOME_PASSIVE_SUBCATS,'Aporte María':INCOME_APORTE_SUBCATS};
+// Un aporte es extraordinario si está marcado así o si la nota lo delata (viaje/Portugal/vacaciones)
+const isAporteExtra=r=>r.subcategory==='Extraordinario'||/viaje|portugal|vacacion/i.test(r.note||'');
 // Mapea cada categoría de ingreso a su fila en la tabla de Income & Spending
 const INCOME_ROW_MAP={'Sueldo':'Sueldo','Comisiones Storyly':'Comms + Expenses','Passive Income':'Passive Income','Referidos':'Otros','Aporte María':'Aporte María'};
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
@@ -1956,7 +1960,7 @@ function casaMioSummary(k){
   const mio=fijosMio+varMio;
   const share=casa*MARIA_SHARE;           // lo que le toca a María
   const owes=share-mariaOwnUsd;           // menos lo que ya puso de su plata
-  const aporte=balGetFor('Aporte María',k);
+  const aporte=(incomeRows||[]).filter(r=>String(r.date).slice(0,7)===k&&r.category==='Aporte María'&&!isAporteExtra(r)).reduce((s,r)=>s+(parseFloat(r.amount_usd)||0),0); // solo el pago del mes (no viajes)
   return {alquiler,fijosCasa,fijosMio,varCasa,varMio,casa,mio,share,owes,aporte,diff:owes-aporte,
           mariaCardUsd,mariaOwnUsd,mariaCardArs:mariaCardRows.reduce((s,r)=>s+r.amt,0),mariaOwnArs:mariaOwnRows.reduce((s,r)=>s+r.amt,0),
           mariaCardRows,mariaOwnRows,mariaRows:mariaCardRows.concat(mariaOwnRows)};
@@ -2153,9 +2157,12 @@ function homeChecklist(k){
   }
   // 9) Aporte María (su 25% de la casa)
   {
-    const rows=homeIncome(k,'Aporte María');const sum=homeIncomeSum(k,'Aporte María');
+    const rows=homeIncome(k,'Aporte María').filter(r=>!isAporteExtra(r));const sum=rows.reduce((s,r)=>s+(parseFloat(r.amount_usd)||0),0);
+    const extra=homeIncome(k,'Aporte María').filter(isAporteExtra).reduce((s,r)=>s+(parseFloat(r.amount_usd)||0),0);
     let owes=0;try{owes=casaMioSummary(k).owes;}catch(e){}
-    items.push({key:'aporte',label:'Aporte María',st:rows.length?'ok':'no',det:rows.length?homeFmtU(sum)+' · '+homeDM(rows[rows.length-1].date)+(owes?' · le tocaban '+homeFmtU(owes):''):('Sin cargar'+(owes?' · le tocan '+homeFmtU(owes):'')),acts:rows.length?[]:[{lbl:'Cargar →',cls:'',fn:()=>homeOpenIncome({category:'Aporte María',date:homeLastDay(k)})}]});
+    items.push({key:'aporte',label:'Pago de María (mes)',st:rows.length?'ok':'no',
+      det:rows.length?homeFmtU(sum)+' · '+homeDM(rows[rows.length-1].date)+(owes?' · le tocaban '+homeFmtU(owes):''):('Sin registrar'+(owes?' · le tocan '+homeFmtU(owes):'')+(extra?' · (aparte: '+homeFmtU(extra)+' extraordinario)':'')),
+      acts:rows.length?[]:[{lbl:'Registrar →',cls:'',fn:()=>homeOpenIncome({category:'Aporte María',subcategory:'Mensual',date:homeLastDay(k)})}]});
   }
   return items;
 }
@@ -2228,6 +2235,7 @@ function renderHome(){
   const dEl=document.getElementById('homeDate');if(dEl)dEl.textContent=HOME_DAYS[today.getDay()]+' '+today.getDate()+' de '+HOME_MONTHS[today.getMonth()].toLowerCase();
   const k=homePrevKey(homeKey(today),1);const name=homeMonthName(k);
   const items=homeChecklist(k);
+  const ord={no:0,mid:1,ok:2};items.sort((a,b)=>ord[a.st]-ord[b.st]); // pendientes arriba, listos abajo
   const done=items.filter(i=>i.st==='ok').length,total=items.length,pend=total-done,closed=pend===0;
   const day=today.getDate();
   const[ky,km]=k.split('-').map(Number);const daysSince=Math.round((today-new Date(ky,km,0))/86400000);
@@ -5078,10 +5086,11 @@ document.getElementById('fixedSaveBtn').onclick=saveFixedExpenses;
     inCatList.innerHTML=matches.length?matches.map(c=>`<div class="combobox-item" data-cat="${c}">${c}</div>`).join(''):'<div class="combobox-empty">Sin coincidencias</div>';
   }
   function inRenderSubCatList(){
-    inSubCatList.innerHTML=INCOME_PASSIVE_SUBCATS.map(c=>`<div class="combobox-item" data-cat="${c}">${c}</div>`).join('');
+    const cat=inCatSelected||inCatInput.value.trim();
+    inSubCatList.innerHTML=(INCOME_SUBCATS_BY_CAT[cat]||INCOME_PASSIVE_SUBCATS).map(c=>`<div class="combobox-item" data-cat="${c}">${c}</div>`).join('');
   }
   function inHandleCatChange(cat){
-    if(cat==='Passive Income'){
+    if(INCOME_SUBCATS_BY_CAT[cat]){
       inSubCatRow.style.display='block';
       inSubCatSelected='';
       inSubCatInput.value='';
@@ -5126,7 +5135,7 @@ document.getElementById('fixedSaveBtn').onclick=saveFixedExpenses;
       inEditingId=row.id;
       inCatInput.value=row.category||'';
       inCatSelected=row.category||'';
-      if(row.category==='Passive Income'){
+      if(INCOME_SUBCATS_BY_CAT[row.category]){
         inSubCatRow.style.display='block';
         inSubCatSelected=row.subcategory||'';
         inSubCatInput.value=row.subcategory||'';
@@ -5191,6 +5200,7 @@ document.getElementById('fixedSaveBtn').onclick=saveFixedExpenses;
     const amount=parseFloat(inAmountEl.value);
     if(!INCOME_CATEGORIES.includes(cat)){inErrorEl.textContent='Elegí una categoría de la lista.';return;}
     if(cat==='Passive Income'&&!INCOME_PASSIVE_SUBCATS.includes(inSubCatSelected)){inErrorEl.textContent='Elegí una subcategoría (QUEM, Littio o Airbnb).';return;}
+    if(cat==='Aporte María'&&!INCOME_APORTE_SUBCATS.includes(inSubCatSelected))inSubCatSelected='Mensual'; // default: es el pago del mes
     if(!date){inErrorEl.textContent='Falta la fecha.';return;}
     if(date<INCOME_CUTOFF){inErrorEl.textContent=`La fecha debe ser ${INCOME_CUTOFF} o posterior.`;return;}
     if(!(amount>0)){inErrorEl.textContent='El monto debe ser mayor a 0.';return;}
@@ -5201,7 +5211,7 @@ document.getElementById('fixedSaveBtn').onclick=saveFixedExpenses;
     inSubmitBtn.disabled=true;
     inSubmitBtn.textContent=isEdit?'Guardando cambios...':'Guardando...';
     try{
-      const payload={date,category:cat,subcategory:cat==='Passive Income'?inSubCatSelected:null,amount,currency:inCurrency,ars_per_usd,amount_usd};
+      const payload={date,category:cat,subcategory:INCOME_SUBCATS_BY_CAT[cat]?(inSubCatSelected||null):null,amount,currency:inCurrency,ars_per_usd,amount_usd};
       if(isEdit){
         const{error}=await sb.from('income_entries').update(payload).eq('id',inEditingId);
         if(error)throw new Error(error.message);
