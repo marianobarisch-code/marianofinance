@@ -517,6 +517,8 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .budget-subtab{padding:.55rem 1.1rem;font-size:12px;font-weight:500;color:var(--text3);background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;font-family:'DM Sans',sans-serif;}
 .budget-subtab:hover{color:var(--text2);}
 .budget-subtab.active{color:var(--text);border-bottom-color:var(--primary);}
+.budget-item.zero{opacity:.62;}
+.budget-item.zero:hover{opacity:1;}
 .budget-subpanel{display:none;}
 .budget-subpanel.active{display:block;}
 
@@ -2710,8 +2712,10 @@ function renderBudget(k){
       scales:{x:{ticks:{font:{size:11}},grid:{display:false},border:{display:false}},y:{ticks:{font:{size:11},callback:v=>fmtShortARS(v)},grid:{color:'rgba(0,0,0,.05)'},border:{display:false}}}}
   });
 
-  // Budgets grid
-  document.getElementById('budgetsGrid').innerHTML=sorted.map(([cat,spent])=>{
+  // Budgets grid: TODAS las categorías de la solapa (también las que están en cero), para poder mover presupuesto entre ellas
+  const scopeCats=CATEGORIES.filter(c=>c!=='Extraordinary'&&(budgetScope==='casa'?scopeForCat(c)==='casa':scopeForCat(c)!=='casa'));
+  const gridCats=[...new Set([...sorted.map(([c])=>c),...scopeCats])].map(c=>[c,cats[c]||0]).sort((a,b)=>(b[1]-a[1])||a[0].localeCompare(b[0]));
+  document.getElementById('budgetsGrid').innerHTML=gridCats.map(([cat,spent])=>{
     const bud=budgets[cat]||0;
     const escCat=cat.replace(/'/g,"\\'");
     // Modo edición inline de esta carta
@@ -2729,7 +2733,7 @@ function renderBudget(k){
     // 10 cuadrados, cada uno = 10% del presupuesto
     const filled=bud>0?Math.min(10,Math.round(rawPct/10)):0;
     const blocks=Array.from({length:10},(_,i)=>`<span class="blk" style="${i<filled?'background:'+col:''}"></span>`).join('');
-    return `<div class="budget-item${over?' over':''}" onclick="openDetail('${escCat}')">
+    return `<div class="budget-item${over?' over':''}${spent?'':' zero'}" onclick="openDetail('${escCat}')">
       <div class="budget-header"><span class="budget-cat"><span class="budget-icon">${catIcon(cat)}</span><span class="budget-cat-name">${cat}</span></span><span class="budget-head-right"><span class="budget-pct" style="color:${col}">${bud>0?Math.round(rawPct)+'%':'—'}</span><button class="budget-edit-btn" title="Editar límite" onclick="event.stopPropagation();startBudgetEdit('${escCat}')">✏</button></span></div>
       <div class="budget-blocks">${blocks}</div>
       <div class="budget-amounts"><span>${fmtARS(spent)}</span>${bud>0?`<span>de ${fmtARS(bud)}</span>`:''}</div>
@@ -2808,7 +2812,7 @@ function renderBudget(k){
     document.getElementById('xpFoot').textContent='ideal '+fmtU(EXTRA_POOL_IDEAL)+' · tope '+fmtU(EXTRA_POOL_MAX);
   }
 
-  renderEditor(sorted.map(([c])=>c));
+  renderEditor(gridCats.map(([c])=>c));
   renderMonthExpensesList(k);
   renderFamExtras(k);
 }
