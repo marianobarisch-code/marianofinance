@@ -249,6 +249,13 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .am-flow .af-del{background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;padding:2px 4px;flex-shrink:0;}
 .am-add{background:var(--surface2);border-radius:8px;padding:12px;margin-top:14px;}
 .am-add-title{font-size:12px;font-weight:600;margin-bottom:9px;}
+.am-add-top{margin:0 0 14px;}
+.am-alert{border-radius:10px;padding:9px 12px;font-size:12px;margin:-6px 0 12px;display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;}
+.am-alert.warn{background:var(--amber-bg);color:var(--amber);border:1px solid #f0dcb4;}
+.am-alert.ok{background:var(--green-bg);color:var(--green);border:1px solid #cfe7da;}
+.am-alert b{font-weight:700;}
+.am-alert .mchip{background:#fff;border:1px solid #e6c98a;color:var(--amber);border-radius:999px;padding:3px 9px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;}
+.am-alert .mchip:hover{border-color:var(--amber);}
 .am-add-row{display:flex;gap:6px;margin-bottom:6px;}
 .am-add-row select,.am-add-row input{font-size:12px;padding:7px 8px;border:1px solid var(--border);border-radius:6px;background:#fff;font-family:inherit;color:var(--text);}
 .am-add-row select{flex:1;min-width:0;} .am-add-row input[type=date]{flex:1;min-width:0;} .am-add-row input[type=number]{width:84px;flex-shrink:0;}
@@ -1087,10 +1094,8 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
       </div>
       <div class="modal-body">
         <div class="am-metrics" id="amMetrics"></div>
-        <div class="am-chart-wrap" id="amChartWrap"><canvas id="amChart"></canvas></div>
-        <div class="am-section-title" id="amSectionTitle">Movimientos de capital</div>
-        <div id="amFlows"></div>
-        <div class="am-add" id="amPotsForm" style="display:none;">
+        <div id="amAlert"></div>
+        <div class="am-add am-add-top" id="amPotsForm" style="display:none;">
           <div class="am-add-title">Nuevo Pot</div>
           <div class="pot-form-grid">
             <input type="number" id="potCap" placeholder="Capital USD" step="0.01">
@@ -1107,7 +1112,7 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
           </div>
           <div id="potErr" style="color:var(--red);font-size:12px;min-height:14px;margin-top:4px;"></div>
         </div>
-        <div class="am-add" id="amGenericAdd">
+        <div class="am-add am-add-top" id="amGenericAdd">
           <div class="am-add-title">Agregar movimiento</div>
           <div class="am-add-row">
             <select id="amType">
@@ -1122,6 +1127,9 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
           <div id="amError" style="color:var(--red);font-size:12px;min-height:14px;"></div>
           <button class="btn-primary" id="amAddBtn" style="width:100%;">Agregar</button>
         </div>
+        <div class="am-chart-wrap" id="amChartWrap"><canvas id="amChart"></canvas></div>
+        <div class="am-section-title" id="amSectionTitle">Movimientos de capital</div>
+        <div id="amFlows"></div>
       </div>
     </div>
   </div>
@@ -2086,7 +2094,7 @@ function homeChecklist(k){
   // 3) Airbnb (varía: siempre formulario)
   {
     const rows=homeIncome(k,'Passive Income','Airbnb');const sum=homeIncomeSum(k,'Passive Income','Airbnb');const pv=homeIncome(prev,'Passive Income','Airbnb').length?homeIncomeSum(prev,'Passive Income','Airbnb'):null;
-    items.push({key:'airbnb',label:'Airbnb',st:rows.length?'ok':'no',det:rows.length?homeFmtU2(sum)+' · '+homeDM(rows[rows.length-1].date):('Sin cargar'+(pv!==null?' · '+prevName+' fue '+homeFmtU2(pv):'')),acts:rows.length?[]:[{lbl:'Cargar →',cls:'',fn:()=>homeOpenIncome({category:'Passive Income',subcategory:'Airbnb',date:homeLastDay(k)})}]});
+    items.push({key:'airbnb',label:'Airbnb',st:rows.length?'ok':'no',det:rows.length?homeFmtU2(sum)+' · '+homeDM(rows[rows.length-1].date):('Sin cargar'+(pv!==null?' · '+prevName+' fue '+homeFmtU2(pv):'')),acts:rows.length?[]:[{lbl:'Cargar →',cls:'',fn:()=>homeOpenAsset('Airbnb',k)}]});
   }
   // 4) QUEM (fijo: un toque)
   {
@@ -2094,7 +2102,7 @@ function homeChecklist(k){
     const acts=[];
     if(!rows.length){
       if(pv>0)acts.push({lbl:'✓ '+homeFmtU2(pv),cls:'one',one:true,fn:()=>homeQuickIncome(k,'Passive Income','QUEM',pv)});
-      acts.push({lbl:pv>0?'otro':'Cargar →',cls:pv>0?'quiet':'',fn:()=>homeOpenIncome({category:'Passive Income',subcategory:'QUEM',date:homeLastDay(k)})});
+      acts.push({lbl:pv>0?'otro':'Cargar →',cls:pv>0?'quiet':'',fn:()=>homeOpenAsset('QUEM',k)});
     }
     items.push({key:'quem',label:'QUEM',st:rows.length?'ok':'no',det:rows.length?homeFmtU2(sum)+' · '+homeDM(rows[rows.length-1].date):('Sin cargar'+(pv>0?' · suele ser '+homeFmtU2(pv):'')),acts});
   }
@@ -2143,6 +2151,13 @@ function homeGoTab(tab,sub){
   const b=document.querySelector('.tab-btn[data-tab="'+tab+'"]');if(b)b.click();
   if(sub){const s=document.querySelector('.budget-subtab[data-bsub="'+sub+'"]');if(s)s.click();}
   window.scrollTo({top:0,behavior:'smooth'});
+}
+function homeOpenAsset(sub,k){ // renta pasiva: se carga en Investments (card del activo), no en Registrar ingreso
+  const asset=Object.keys(ASSET_RENTA_SUBCAT).find(a=>ASSET_RENTA_SUBCAT[a]===sub);if(!asset)return;
+  homeGoTab('investments');
+  try{renderInvestments();}catch(e){}
+  openAssetDetail(asset);
+  if(k)amPrefill({type:'retiro',date:homeLastDay(k),note:'renta '+homeMonthName(k).toLowerCase()});
 }
 function homeOpenIncome(o){if(o&&window.inOpenModalPrefill)return window.inOpenModalPrefill(o);const b=document.getElementById('addIncomeBtn');if(b)b.click();}
 function homeOpenExpense(){const b=document.getElementById('addExpenseBtn');if(b)b.click();}
@@ -2220,7 +2235,7 @@ function renderHome(){
       html+='<div class="hc-list">'+items.map(rowHtml).join('')+'</div>';
       const hasOne=items.some(it=>it.acts.some(a=>a.one));
       let cm='';try{const S=casaMioSummary(k);cm='<div style="margin-bottom:4px">🏠 Casa '+homeFmtU(S.casa)+' · 👤 Personal '+homeFmtU(S.mio)+' · María le toca '+homeFmtU(S.owes)+(S.aporte?' (aportó '+homeFmtU(S.aporte)+')':'')+'</div>';}catch(e){}
-      html+='<div class="hc-foot">'+cm+(hasOne?'Los botones azules cargan con un toque el mismo valor del mes pasado. ':'')+'Airbnb varía cada mes, por eso abre el formulario.</div>';
+      html+='<div class="hc-foot">'+cm+(hasOne?'Los botones azules cargan con un toque el mismo valor del mes pasado. ':'')+'Airbnb varía cada mes: te lleva a su card en Investments con el formulario listo.</div>';
     }
     html+='</div>';
   }
@@ -4407,6 +4422,35 @@ function renderPotsPanel(){
 const assetModal=document.getElementById('assetModal');
 let amChartInst=null,amCurrentAsset=null;
 function assetLabel(name){const a=PRODUCTIVE_ASSETS.find(x=>x.name===name);return a?a.label:name;}
+// Renta mensual esperada (Airbnb, QUEM): qué meses faltan cargar desde INCOME_CUTOFF hasta el mes pasado
+const ASSET_MONTHLY_SUBS=['Airbnb','QUEM'];
+function assetMissingMonths(asset){
+  const sub=ASSET_RENTA_SUBCAT[asset];if(!sub||!ASSET_MONTHLY_SUBS.includes(sub))return null;
+  const have=new Set(assetRentaList(asset).map(r=>String(r.flow_date).slice(0,7)));
+  const t=new Date();const end=new Date(t.getFullYear(),t.getMonth()-1,1); // mes pasado
+  const miss=[];let d=new Date(INCOME_CUTOFF+'T00:00:00');
+  while(d<=end){const k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');if(!have.has(k))miss.push(k);d=new Date(d.getFullYear(),d.getMonth()+1,1);}
+  return {missing:miss,last:[...have].sort().pop()||null};
+}
+function amPrefill(o){
+  o=o||{};
+  const ty=document.getElementById('amType'),dt=document.getElementById('amDate'),nt=document.getElementById('amNote'),am=document.getElementById('amAmount');
+  if(o.type&&ty)ty.value=o.type;
+  if(o.date&&dt)dt.value=o.date;
+  if(o.note!=null&&nt)nt.value=o.note;
+  const box=document.getElementById('amGenericAdd');if(box)box.scrollIntoView({block:'nearest'});
+  setTimeout(()=>{try{am.focus();}catch(e){}},80);
+}
+function renderAssetAlert(asset){
+  const el=document.getElementById('amAlert');if(!el)return;
+  const r=assetMissingMonths(asset);
+  if(!r){el.innerHTML='';el.className='';return;}
+  const mn=k=>['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][+k.split('-')[1]-1];
+  if(!r.missing.length){el.className='am-alert ok';el.innerHTML='✓ Renta al día'+(r.last?' · último mes cargado: <b>'+mn(r.last)+'</b>':'');return;}
+  el.className='am-alert warn';
+  el.innerHTML='⚠️ <b>Se actualiza cada mes.</b> Falta cargar: '+r.missing.map(k=>'<button type="button" class="mchip" data-k="'+k+'">'+mn(k)+'</button>').join('')+'<span style="flex-basis:100%;font-size:11px;opacity:.85">Tocá un mes: te deja el formulario listo con esa fecha (si el mes dio pérdida, cargalo en negativo).</span>';
+  el.querySelectorAll('.mchip').forEach(b=>b.onclick=()=>{const k=b.dataset.k;const[y,m]=k.split('-').map(Number);const last=new Date(y,m,0);amPrefill({type:'retiro',date:k+'-'+String(last.getDate()).padStart(2,'0'),note:'renta '+mn(k).toLowerCase()});});
+}
 function openAssetDetail(asset){
   amCurrentAsset=asset;
   const m=assetMetrics(asset);
@@ -4430,6 +4474,7 @@ function openAssetDetail(asset){
     cells.push(['Rendimiento anual (TIR)',m.annual!=null?((m.annual>=0?'+':'')+m.annual.toFixed(1)+'%/año'):'s/d',m.annual!=null?gCls:'']);
   }
   document.getElementById('amMetrics').innerHTML=cells.map(c=>'<div class="am-metric"><div class="lbl">'+c[0]+'</div><div class="val '+c[2]+'">'+c[1]+'</div></div>').join('');
+  renderAssetAlert(asset);
   const vals=assetValuations(asset);
   if(amChartInst){amChartInst.destroy();amChartInst=null;}
   const chartWrap=document.getElementById('amChartWrap');
