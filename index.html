@@ -2244,7 +2244,9 @@ function homeChecklist(k){
   // 3) Airbnb (varía: siempre formulario)
   {
     const rows=homeIncome(k,'Passive Income','Airbnb');const sum=homeIncomeSum(k,'Passive Income','Airbnb');const pv=homeIncome(prev,'Passive Income','Airbnb').length?homeIncomeSum(prev,'Passive Income','Airbnb'):null;
-    items.push({key:'airbnb',label:'Airbnb',st:rows.length?'ok':'no',det:rows.length?homeFmtU2(sum)+' · '+homeDM(rows[rows.length-1].date):('Sin cargar'+(pv!==null?' · '+prevName+' fue '+homeFmtU2(pv):'')),acts:rows.length?[]:[{lbl:'Cargar →',cls:'',fn:()=>homeOpenAsset('Airbnb',k)}]});
+    // La liquidación de Airbnb llega a mitad del mes siguiente: hasta el 15 se espera en ámbar, no en rojo
+    const waiting=!rows.length&&new Date().getDate()<=15;
+    items.push({key:'airbnb',label:'Airbnb',st:rows.length?'ok':(waiting?'mid':'no'),det:rows.length?homeFmtU2(sum)+' · '+homeDM(rows[rows.length-1].date):(waiting?'Esperando la liquidación (llega ~15 del mes)':'Sin cargar'+(pv!==null?' · '+prevName+' fue '+homeFmtU2(pv):'')),acts:rows.length?[]:[{lbl:'Cargar →',cls:waiting?'quiet':'',fn:()=>homeOpenAsset('Airbnb',k)}]});
   }
   // 4) QUEM (fijo: un toque)
   {
