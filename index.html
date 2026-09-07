@@ -2079,14 +2079,14 @@ function homeChecklist(k){
     const acts=[];
     if(!rows.length){
       if(pv>0)acts.push({lbl:'✓ '+homeFmtU(pv),cls:'one',one:true,fn:()=>homeQuickIncome(k,'Sueldo',null,pv)});
-      acts.push({lbl:pv>0?'otro':'Cargar →',cls:pv>0?'quiet':'',fn:()=>homeOpenIncome()});
+      acts.push({lbl:pv>0?'otro':'Cargar →',cls:pv>0?'quiet':'',fn:()=>homeOpenIncome({category:'Sueldo',date:homeLastDay(k)})});
     }
     items.push({key:'sueldo',label:'Sueldo',st:rows.length?'ok':'no',det:rows.length?homeFmtU(sum)+' · '+homeDM(rows[rows.length-1].date):('Sin cargar'+(pv>0?' · '+prevName+' fue '+homeFmtU(pv):'')),acts});
   }
   // 3) Airbnb (varía: siempre formulario)
   {
     const rows=homeIncome(k,'Passive Income','Airbnb');const sum=homeIncomeSum(k,'Passive Income','Airbnb');const pv=homeIncome(prev,'Passive Income','Airbnb').length?homeIncomeSum(prev,'Passive Income','Airbnb'):null;
-    items.push({key:'airbnb',label:'Airbnb',st:rows.length?'ok':'no',det:rows.length?homeFmtU2(sum)+' · '+homeDM(rows[rows.length-1].date):('Sin cargar'+(pv!==null?' · '+prevName+' fue '+homeFmtU2(pv):'')),acts:rows.length?[]:[{lbl:'Cargar →',cls:'',fn:()=>homeOpenIncome()}]});
+    items.push({key:'airbnb',label:'Airbnb',st:rows.length?'ok':'no',det:rows.length?homeFmtU2(sum)+' · '+homeDM(rows[rows.length-1].date):('Sin cargar'+(pv!==null?' · '+prevName+' fue '+homeFmtU2(pv):'')),acts:rows.length?[]:[{lbl:'Cargar →',cls:'',fn:()=>homeOpenIncome({category:'Passive Income',subcategory:'Airbnb',date:homeLastDay(k)})}]});
   }
   // 4) QUEM (fijo: un toque)
   {
@@ -2094,7 +2094,7 @@ function homeChecklist(k){
     const acts=[];
     if(!rows.length){
       if(pv>0)acts.push({lbl:'✓ '+homeFmtU2(pv),cls:'one',one:true,fn:()=>homeQuickIncome(k,'Passive Income','QUEM',pv)});
-      acts.push({lbl:pv>0?'otro':'Cargar →',cls:pv>0?'quiet':'',fn:()=>homeOpenIncome()});
+      acts.push({lbl:pv>0?'otro':'Cargar →',cls:pv>0?'quiet':'',fn:()=>homeOpenIncome({category:'Passive Income',subcategory:'QUEM',date:homeLastDay(k)})});
     }
     items.push({key:'quem',label:'QUEM',st:rows.length?'ok':'no',det:rows.length?homeFmtU2(sum)+' · '+homeDM(rows[rows.length-1].date):('Sin cargar'+(pv>0?' · suele ser '+homeFmtU2(pv):'')),acts});
   }
@@ -2134,7 +2134,7 @@ function homeChecklist(k){
   {
     const rows=homeIncome(k,'Aporte María');const sum=homeIncomeSum(k,'Aporte María');
     let owes=0;try{owes=casaMioSummary(k).owes;}catch(e){}
-    items.push({key:'aporte',label:'Aporte María',st:rows.length?'ok':'no',det:rows.length?homeFmtU(sum)+' · '+homeDM(rows[rows.length-1].date)+(owes?' · le tocaban '+homeFmtU(owes):''):('Sin cargar'+(owes?' · le tocan '+homeFmtU(owes):'')),acts:rows.length?[]:[{lbl:'Cargar →',cls:'',fn:()=>homeOpenIncome()}]});
+    items.push({key:'aporte',label:'Aporte María',st:rows.length?'ok':'no',det:rows.length?homeFmtU(sum)+' · '+homeDM(rows[rows.length-1].date)+(owes?' · le tocaban '+homeFmtU(owes):''):('Sin cargar'+(owes?' · le tocan '+homeFmtU(owes):'')),acts:rows.length?[]:[{lbl:'Cargar →',cls:'',fn:()=>homeOpenIncome({category:'Aporte María',date:homeLastDay(k)})}]});
   }
   return items;
 }
@@ -2144,7 +2144,7 @@ function homeGoTab(tab,sub){
   if(sub){const s=document.querySelector('.budget-subtab[data-bsub="'+sub+'"]');if(s)s.click();}
   window.scrollTo({top:0,behavior:'smooth'});
 }
-function homeOpenIncome(){const b=document.getElementById('addIncomeBtn');if(b)b.click();}
+function homeOpenIncome(o){if(o&&window.inOpenModalPrefill)return window.inOpenModalPrefill(o);const b=document.getElementById('addIncomeBtn');if(b)b.click();}
 function homeOpenExpense(){const b=document.getElementById('addExpenseBtn');if(b)b.click();}
 async function homeRun(btn,fn){ // ejecuta una carga de un toque, recarga todo y re-renderiza
   if(homeBusyFlag)return;homeBusyFlag=true;
@@ -5105,6 +5105,15 @@ document.getElementById('fixedSaveBtn').onclick=saveFixedExpenses;
     inModal.classList.add('active');
     inRenderCatList('');
   }
+  // Abrir el modal ya armado (desde Home): categoría, subcategoría y fecha prellenadas; solo falta el monto
+  window.inOpenModalPrefill=function(o){
+    inOpenModal();o=o||{};
+    if(o.category){inCatInput.value=o.category;inCatSelected=o.category;inHandleCatChange(o.category);}
+    if(o.subcategory){inSubCatRow.style.display='block';inSubCatSelected=o.subcategory;inSubCatInput.value=o.subcategory;}
+    if(o.date)inDateEl.value=o.date;
+    inCatCombo.classList.remove('open');
+    setTimeout(()=>{try{inAmountEl.focus();}catch(e){}},80);
+  };
   function inCloseModal(){
     inModal.classList.remove('active');
     inCatCombo.classList.remove('open');
