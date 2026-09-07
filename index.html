@@ -1401,12 +1401,25 @@ let charts={};
 function setStatus(msg,cls){const el=document.getElementById('statusMsg');el.textContent=msg;el.className='status-pill '+cls;}
 function destroyChart(k){if(charts[k]){charts[k].destroy();delete charts[k];}}
 // ── FETCH ALL DATA ──────────────────────────────────────────
-async function fetchSheet(range){
+async function fetchSheet(range,attempt){
+  attempt=attempt||1;
   const encoded=range.replace(/'/g,'%27').replace(/\+/g,'%2B').replace(/!/g,'!');
   const url=`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encoded}?key=${API_KEY}`;
-  const r=await fetch(url);const j=await r.json();
-  if(j.error)throw new Error(j.error.message);
-  return j.values||[];
+  try{
+    const r=await fetch(url);const j=await r.json();
+    if(j.error){const e=new Error(j.error.message);e.status=r.status;throw e;}
+    return j.values||[];
+  }catch(e){
+    // Google Sheets a veces devuelve 503 "The service is currently unavailable": reintentar 3 veces con espera creciente
+    const transient=(e.status>=500)||/unavailable|backend error|timeout|failed to fetch|network/i.test(e.message||'');
+    if(transient&&attempt<=3){
+      setStatus('Google Sheets no responde, reintentando ('+attempt+'/3)…','loading');
+      await new Promise(res=>setTimeout(res,900*attempt*attempt));
+      return fetchSheet(range,attempt+1);
+    }
+    if(transient)e.message='Google Sheets no respondió (hipo momentáneo). Recargá la página en unos segundos.';
+    throw e;
+  }
 }
 
 async function fetchSupabaseExpenses(){
