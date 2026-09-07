@@ -786,14 +786,15 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
   <!-- TAB: BUDGET -->
   <div class="tab-panel" id="tab-budget">
     <div class="budget-subtabs">
-      <button class="budget-subtab active" data-bsub="home">Gastos variables</button>
+      <button class="budget-subtab active" data-bsub="home" data-scope="mio" id="bsubPersonal">👤 Personal</button>
+      <button class="budget-subtab" data-bsub="home" data-scope="casa" id="bsubFamily">🏠 Family Economy</button>
       <button class="budget-subtab" data-bsub="fijos">Gastos Fijos</button>
     </div>
     <div class="budget-subpanel active" id="bsub-home">
     <!-- 1. Metric cards -->
     <div class="metrics-grid-2">
       <div class="metric-card">
-        <div class="metric-label">Total gastado (ARS)</div>
+        <div class="metric-label" id="mTotalLabel">Total gastado (ARS)</div>
         <div class="metric-value" id="mTotal">—</div>
         <div class="metric-sub" id="mTotalSub">—</div>
       </div>
@@ -808,6 +809,14 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
     <button class="add-expense-btn" id="addExpenseBtn">
       <span style="font-size:18px;line-height:1;">+</span><span>Add expense</span>
     </button>
+    <div class="card" id="famExtras" style="display:none;margin-bottom:12px;">
+      <div class="cm-head"><div class="cm-title">🏠 La casa este mes</div><span class="cm-sub" id="famSub"></span></div>
+      <div class="hist-body" id="famBody">—</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+        <button class="hc-go" id="famMariaBtn">Mes de María →</button>
+        <button class="hc-go quiet" id="famImportBtn" title="Pegar el resumen de la tarjeta y cargar lo que falta (próximo paso)">Importar resumen · pronto</button>
+      </div>
+    </div>
     <!-- Resumen del presupuesto variable vs meta del mes -->
     <div class="card" id="budgetSummaryCard">
       <div class="bsum-top">
@@ -2259,7 +2268,7 @@ function homeChecklist(k){
 // ── acciones ──
 function homeGoTab(tab,sub){
   const b=document.querySelector('.tab-btn[data-tab="'+tab+'"]');if(b)b.click();
-  if(sub){const s=document.querySelector('.budget-subtab[data-bsub="'+sub+'"]');if(s)s.click();}
+  if(sub){const s=document.querySelector(sub==='family'?'#bsubFamily':(sub==='personal'?'#bsubPersonal':'.budget-subtab[data-bsub="'+sub+'"]'));if(s)s.click();}
   window.scrollTo({top:0,behavior:'smooth'});
 }
 function homeOpenAsset(sub,k){ // renta pasiva: se carga en Investments (card del activo), no en Registrar ingreso
@@ -2628,11 +2637,16 @@ async function saveBalanceBatch(){
 
 // ── BUDGET TAB ────────────────────────────────────────────────
 function monthVarData(k){return varRows.filter(r=>mk(r.date)===k&&r.cat!=='Extraordinary');}
+// ── Budget: solapa activa (Personal = mio, Family Economy = casa) ──
+let budgetScope='mio';
+const inBudgetScope=r=>{const sc=r.scope||(r.cat==='Extraordinary'?'mio':scopeForCat(r.cat));return budgetScope==='casa'?sc==='casa':sc!=='casa';};
+function scopedVarData(k){return monthVarData(k).filter(inBudgetScope);}
 function monthExtraData(k){return varRows.filter(r=>mk(r.date)===k&&r.cat==='Extraordinary');}
 function groupByCat(rows){const m={};rows.forEach(r=>{m[r.cat]=(m[r.cat]||0)+r.amt;});return m;}
 
 function renderBudget(k){
-  const rows=monthVarData(k);
+  const rows=scopedVarData(k);
+  const lblEl=document.getElementById('mTotalLabel');if(lblEl)lblEl.textContent=(budgetScope==='casa'?'🏠 Casa · total (ARS)':'👤 Personal · total (ARS)');
   const cats=groupByCat(rows);
   const sorted=Object.entries(cats).sort((a,b)=>b[1]-a[1]);
   const total=sorted.reduce((s,[,v])=>s+v,0);
@@ -2648,7 +2662,7 @@ function renderBudget(k){
     const isCurMonth=(today.getFullYear()===cy && today.getMonth()+1===cm);
     const cutoffDay=isCurMonth?today.getDate():new Date(cy,cm,0).getDate();
     const curTotProp=rows.filter(r=>r.date.getDate()<=cutoffDay).reduce((s,r)=>s+r.amt,0);
-    const prevTotProp=monthVarData(prevK).filter(r=>r.date.getDate()<=cutoffDay).reduce((s,r)=>s+r.amt,0);
+    const prevTotProp=scopedVarData(prevK).filter(r=>r.date.getDate()<=cutoffDay).reduce((s,r)=>s+r.amt,0);
     if(prevTotProp>0){
       const d=Math.round((curTotProp-prevTotProp)/prevTotProp*100);
       const sign=d>=0?'+':'';
@@ -2691,7 +2705,7 @@ function renderBudget(k){
   destroyChart('varBar');
   charts.varBar=new Chart(document.getElementById('varBarChart'),{
     type:'bar',
-    data:{labels:last.map(mnShort),datasets:[{data:last.map(m=>monthVarData(m).reduce((s,r)=>s+r.amt,0)),backgroundColor:last.map((_,i)=>i===last.length-1?'#1a1a1a':'#d4d2cc'),borderRadius:5,borderSkipped:false}]},
+    data:{labels:last.map(mnShort),datasets:[{data:last.map(m=>scopedVarData(m).reduce((s,r)=>s+r.amt,0)),backgroundColor:last.map((_,i)=>i===last.length-1?'#1a1a1a':'#d4d2cc'),borderRadius:5,borderSkipped:false}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>'  '+fmtARS(ctx.raw)}}},
       scales:{x:{ticks:{font:{size:11}},grid:{display:false},border:{display:false}},y:{ticks:{font:{size:11},callback:v=>fmtShortARS(v)},grid:{color:'rgba(0,0,0,.05)'},border:{display:false}}}}
   });
@@ -2726,7 +2740,7 @@ function renderBudget(k){
   // ── Resumen: gasto variable total vs presupuesto total + ritmo del mes ──
   const sumCard=document.getElementById('budgetSummaryCard');
   if(sumCard){
-    const allCats=new Set([...sorted.map(([c])=>c),...Object.keys(budgets)]);
+    const allCats=new Set([...sorted.map(([c])=>c),...Object.keys(budgets).filter(c=>budgetScope==='casa'?scopeForCat(c)==='casa':scopeForCat(c)!=='casa')]);
     allCats.delete('Extraordinary'); // extraordinarios corren en paralelo, no tocan la meta variable
     let spentTot=0,budTot=0;
     sorted.forEach(([,v])=>spentTot+=v);
@@ -2796,10 +2810,30 @@ function renderBudget(k){
 
   renderEditor(sorted.map(([c])=>c));
   renderMonthExpensesList(k);
+  renderFamExtras(k);
+}
+// ── Family Economy: bloque extra (solo en la solapa Casa) ──
+function renderFamExtras(k){
+  const box=document.getElementById('famExtras');if(!box)return;
+  if(budgetScope!=='casa'){box.style.display='none';return;}
+  box.style.display='block';
+  let S=null;try{S=casaMioSummary(k);}catch(e){}
+  const N=v=>Math.round(v).toLocaleString('es-AR');
+  document.getElementById('famSub').textContent=mnName(k);
+  if(!S){document.getElementById('famBody').textContent='—';return;}
+  const rows=scopedVarData(k);
+  const tot=rows.reduce((s,r)=>s+r.amt,0);
+  const card=S.mariaCardArs,own=S.mariaOwnArs,mine=tot-card-own;
+  document.getElementById('famBody').innerHTML=
+    '<b>La casa costó US$ '+N(S.casa)+'</b> (alquiler '+N(S.alquiler)+' · fijos '+N(S.fijosCasa)+' · variables '+N(S.varCasa)+').<br>'+
+    'Variables de la casa: <b>ARS '+N(tot)+'</b> → vos ARS '+N(mine)+' · María con tu tarjeta ARS '+N(card)+' · María de su plata ARS '+N(own)+'.<br>'+
+    'A María le tocan <b>US$ '+N(S.owes)+'</b> este mes'+(S.aporte?' · ya pagó US$ '+N(S.aporte):'')+'.';
+  const mb=document.getElementById('famMariaBtn');if(mb)mb.onclick=()=>openMariaModal(k);
+  const ib=document.getElementById('famImportBtn');if(ib)ib.onclick=()=>alert('Importar resumen: es el próximo paso. Por ahora, el resumen de agosto ya lo cargamos juntos.');
 }
 
 function renderMonthExpensesList(k){
-  const all=varRows.filter(r=>mk(r.date)===k).sort((a,b)=>b.date-a.date);
+  const all=varRows.filter(r=>mk(r.date)===k&&inBudgetScope(r)).sort((a,b)=>b.date-a.date);
   const lblEl=document.getElementById('monthExpensesLabel');
   const listEl=document.getElementById('monthExpensesList');
   if(!lblEl||!listEl)return;
@@ -3791,7 +3825,7 @@ let detailInst=null;
 function openDetail(cat){
   const color=catColorMap[cat]||'#1a1a1a';
   const k=months[curIdx];
-  const monthTotals=months.map(m=>monthVarData(m).filter(r=>r.cat===cat).reduce((s,r)=>s+r.amt,0));
+  const monthTotals=months.map(m=>scopedVarData(m).filter(r=>r.cat===cat).reduce((s,r)=>s+r.amt,0));
   const thisMonth=monthTotals[curIdx];
   const nonZero=monthTotals.filter(v=>v!==0);
   const avg=nonZero.length?nonZero.reduce((s,v)=>s+v,0)/nonZero.length:0;
@@ -3805,7 +3839,7 @@ function openDetail(cat){
   document.getElementById('dVsAvgSub').textContent=vsAvg>0?'por encima del promedio':vsAvg<0?'por debajo del promedio':'igual al promedio';
   if(detailInst){detailInst.destroy();detailInst=null;}
   const chartMs=months.slice(Math.max(0,months.length-12));
-  const chartData=chartMs.map(m=>monthVarData(m).filter(r=>r.cat===cat).reduce((s,r)=>s+r.amt,0));
+  const chartData=chartMs.map(m=>scopedVarData(m).filter(r=>r.cat===cat).reduce((s,r)=>s+r.amt,0));
   const chartColors=chartMs.map((_,i)=>i===chartMs.length-1?color:color+'66');
   detailInst=new Chart(document.getElementById('detailChart'),{
     type:'bar',
@@ -3816,7 +3850,7 @@ function openDetail(cat){
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>'  '+fmtARS(ctx.raw)}}},
       scales:{x:{ticks:{font:{size:11},maxRotation:0},grid:{display:false},border:{display:false}},y:{ticks:{font:{size:11},callback:v=>fmtShortARS(v)},grid:{color:'rgba(0,0,0,.05)'},border:{display:false}}}}
   });
-  const txns=monthVarData(k).filter(r=>r.cat===cat).sort((a,b)=>b.date-a.date);
+  const txns=scopedVarData(k).filter(r=>r.cat===cat).sort((a,b)=>b.date-a.date);
   document.getElementById('txnTitle').textContent='Gastos en '+mnName(k)+' ('+txns.length+')';
   currentDetailCat=cat;
   document.getElementById('txnList').innerHTML=txns.length
@@ -4868,7 +4902,7 @@ function exRenderCatList(query){
   }
 }
 
-document.getElementById('addExpenseBtn').onclick=()=>exOpenModal();
+document.getElementById('addExpenseBtn').onclick=()=>{exOpenModal();if(budgetScope==='casa'){exScopeTouched=true;setExScope('casa');}};
 document.getElementById('addExpenseClose').onclick=exCloseModal;
 document.getElementById('exCancel').onclick=exCloseModal;
 exModal.onclick=e=>{if(e.target===exModal)exCloseModal();};
@@ -4939,6 +4973,7 @@ document.querySelectorAll('.budget-subtab').forEach(btn=>{
     document.querySelectorAll('.budget-subpanel').forEach(p=>p.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('bsub-'+btn.dataset.bsub).classList.add('active');
+    if(btn.dataset.scope&&btn.dataset.scope!==budgetScope){budgetScope=btn.dataset.scope;if(months&&months.length)renderBudget(months[curIdx]);}
   };
 });
 document.getElementById('fixedSaveBtn').onclick=saveFixedExpenses;
