@@ -87,7 +87,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:.
 .hl-l{display:flex;gap:8px;align-items:center;font-size:13px;}
 .hl-l .hc-st{width:14px;height:14px;font-size:9px;}
 .hl-l .hc-det{margin-left:auto;text-align:right;}
-.home-quick{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;}
+.home-quick{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
 .hq{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 4px;text-align:center;font-size:10.5px;line-height:1.2;font-weight:600;color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif;}
 .hq:hover{border-color:var(--primary);color:var(--text);}
 .hq .i{font-size:18px;display:block;margin-bottom:2px;}
@@ -689,7 +689,6 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
   <button class="tab-btn" data-tab="networth">Net Worth</button>
   <button class="tab-btn" data-tab="balance">Income & Spending</button>
   <button class="tab-btn" data-tab="budget">Budget</button>
-  <button class="tab-btn" data-tab="insights">Insights</button>
   <button class="tab-btn" data-tab="investments">Investments</button>
 </div>
 
@@ -708,12 +707,13 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
       <div class="cm-settle" id="cmSettle"></div>
     </div>
     <div id="homeLive"></div>
+    <div class="card" id="coachCard" style="margin-bottom:12px;">
+      <div class="cm-head"><div class="cm-title">🧭 Coach</div><span class="cm-sub" id="coachSub">v0 · definimos juntos qué te dice</span></div>
+      <div class="hist-body" id="coachBody">—</div>
+    </div>
     <div class="home-quick">
       <button class="hq" id="hqGasto"><span class="i">＋</span>Gasto</button>
       <button class="hq" id="hqIngreso"><span class="i">💵</span>Ingreso</button>
-      <button class="hq" id="hqMaria"><span class="i">🏠</span>Mes de María</button>
-      <button class="hq" id="hqFijos"><span class="i">📅</span>Fijos</button>
-      <button class="hq" id="hqNw"><span class="i">🏦</span>Net Worth</button>
     </div>
     <div class="card" id="histCard" style="margin-top:12px;">
       <div class="cm-head"><div class="cm-title">Histórico (antes de mayo 2026)</div><span class="cm-sub" id="histSrc">—</span></div>
@@ -832,14 +832,11 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
     </button>
     <div id="famExtras" style="display:none;">
       <div class="fam-grid">
-        <div class="metric-card fam-card"><div class="metric-label">Fijos + alquiler</div><div class="metric-value" id="fcFixed">—</div><div class="metric-sub" id="fcFixedSub">—</div></div>
+        <div class="metric-card fam-card clickable" id="fcFixedCard" title="Ver qué lo compone"><div class="metric-label">Fijos + alquiler</div><div class="metric-value" id="fcFixed">—</div><div class="metric-sub" id="fcFixedSub">—</div><div class="metric-hint">ver ítems →</div></div>
         <div class="metric-card fam-card"><div class="metric-label">Variables · quién puso</div><div class="metric-value" id="fcVar">—</div><div class="metric-sub" id="fcVarSub">—</div></div>
         <div class="metric-card fam-card maria"><div class="metric-label">A María le toca (25%)</div><div class="metric-value" id="fcMaria">—</div><div class="metric-sub" id="fcMariaSub">—</div></div>
       </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;">
-        <button class="hc-go" id="famMariaBtn">Mes de María →</button>
-        <button class="hc-go quiet" id="famImportBtn" title="Pegar el resumen de la tarjeta y cargar lo que falta (próximo paso)">Importar resumen · pronto</button>
-      </div>
+      <div class="card" id="fcFixedList" style="display:none;margin:-4px 0 14px;"></div>
     </div>
     <!-- Resumen del presupuesto variable vs meta del mes -->
     <div class="card" id="budgetSummaryCard">
@@ -1990,13 +1987,16 @@ function recomputeBudgetsFor(monthKey,catsArg){
 function renderHistCard(){
   const src=document.getElementById('histSrc'),body=document.getElementById('histBody'),btn=document.getElementById('histCopyBtn');
   if(!src||!body||!btn)return;
+  const card=document.getElementById('histCard');
   if(histFromSupabase()){
+    if(card)card.style.display='none'; // migración hecha: la card ya no tiene razón de estar en Home
     const t=SHEET_RANGES.map(r=>sheetSnapshots[r]);const taken=new Date(t[0].taken_at);
     const cells=t.reduce((s,x)=>s+(x.cells||0),0),rows=t.reduce((s,x)=>s+(x.rows||0),0);
     src.textContent='Fuente: Supabase ✓';src.style.color='var(--green)';
     body.innerHTML='Tu histórico ya vive en Supabase (copiado el '+taken.toLocaleDateString('es-AR')+' · '+rows.toLocaleString('es-AR')+' filas · '+cells.toLocaleString('es-AR')+' celdas, verificado). La app ya no depende de Google Sheets. La planilla queda como respaldo.';
     btn.textContent='Volver a copiar y verificar';
   }else{
+    if(card)card.style.display='block';
     src.textContent='Fuente: Google Sheets';src.style.color='var(--amber)';
     body.innerHTML='Todo lo anterior a mayo 2026 todavía se lee de Google Sheets en cada carga (por eso a veces falla). Con un clic se copia tal cual a Supabase y se verifica celda por celda. No se borra ni se modifica nada en Google.';
     btn.textContent='Copiar a Supabase y verificar';
@@ -2171,10 +2171,19 @@ async function saveMaria(){
 }
 (function(){
   const q=(id,fn)=>{const b=document.getElementById(id);if(b)b.onclick=fn;};
-  q('hqMaria',()=>openMariaModal());
   q('mmClose',closeMariaModal);q('mmCancel',closeMariaModal);q('mmSave',saveMaria);
   const m=document.getElementById('mariaModal');if(m)m.onclick=e=>{if(e.target===m)closeMariaModal();};
 })();
+
+// ══════════ COACH v0 — placeholder con 2 lecturas del mes cerrado (a definir con Mariano) ══════════
+function renderCoach(k,name){
+  const el=document.getElementById('coachBody');if(!el)return;
+  const lines=[];
+  const sp=homeSavedPct(k);
+  if(sp!==null){const pct=Math.round(sp*100);lines.push((pct>=40?'🟢':pct>=30?'🟡':'🔴')+' Ahorro de '+name.toLowerCase()+': <b>'+pct+'%</b> (meta 30–40%).');}
+  try{const S=casaMioSummary(k);if(S.casa>0){const share=Math.round(S.casa/(S.casa+S.mio)*100);lines.push('🏠 La casa fue el <b>'+share+'%</b> de tu gasto del mes (US$ '+Math.round(S.casa).toLocaleString('es-AR')+' vs. '+Math.round(S.mio).toLocaleString('es-AR')+' personal).');}}catch(e){}
+  el.innerHTML=lines.length?lines.join('<br>'):'Todavía no hay lecturas para este mes.';
+}
 
 // ══════════ HOME — cierre del mes guiado ══════════
 let homeCierreOpen=null; // null = automático (abierto si hay pendientes); true/false = forzado por el usuario
@@ -2277,7 +2286,7 @@ function homeChecklist(k){
   // 8) Mes de María (líneas por categoría del resumen de su tarjeta)
   {
     const rows=mariaMonthRows(k);const card=rows.filter(r=>r.payer!=='maria').reduce((s,r)=>s+r.amt,0);const own=rows.filter(r=>r.payer==='maria').reduce((s,r)=>s+r.amt,0);
-    items.push({key:'maria',label:'Mes de María',st:rows.length?'ok':'no',det:rows.length?('tu tarjeta '+homeFmtA(card)+' · su plata '+homeFmtA(own)):'Sin cargar · tu tarjeta y su plata',acts:rows.length?[{lbl:'editar',cls:'quiet',fn:()=>openMariaModal(k)}]:[{lbl:'Cargar →',cls:'',fn:()=>openMariaModal(k)}]});
+    items.push({key:'maria',label:'Mes de María',st:rows.length?'ok':'no',det:rows.length?('tu tarjeta '+homeFmtA(card)+' · su plata '+homeFmtA(own)):'Sin cargar · pasale a Claude el resumen de la tarjeta y sus gastos en efectivo',acts:[]});
   }
   // 9) Aporte María (su 25% de la casa)
   {
@@ -2387,6 +2396,7 @@ function renderHome(){
   el.innerHTML=html;
   try{renderCasaMio(k);}catch(e){console.warn('casaMio:',e);}
   try{renderHistCard();}catch(e){console.warn('hist:',e);}
+  try{renderCoach(k,name);}catch(e){console.warn('coach:',e);}
   const tg=document.getElementById('hcToggle');if(tg)tg.onclick=()=>{homeCierreOpen=!open;renderHome();};
   el.querySelectorAll('.hc-go').forEach(b=>b.onclick=()=>{const a=items[+b.dataset.i].acts[+b.dataset.j];if(!a)return;if(a.one)homeRun(b,a.fn);else a.fn();});
   const live=document.getElementById('homeLive');if(live)live.innerHTML=homeLiveHtml(today);
@@ -2396,8 +2406,6 @@ function renderHome(){
   const q=(id,fn)=>{const b=document.getElementById(id);if(b)b.onclick=fn;};
   q('hqGasto',()=>homeOpenExpense());
   q('hqIngreso',()=>homeOpenIncome());
-  q('hqFijos',()=>homeGoTab('budget','fijos'));
-  q('hqNw',()=>homeGoTab('networth'));
 })();
 
 function render(){
@@ -2886,8 +2894,14 @@ function renderFamExtras(k){
   document.getElementById('fcVarSub').textContent='Vos '+F(mineArs,S.varCasa-S.mariaCardUsd-S.mariaOwnUsd)+' · María con tu tarjeta '+F(S.mariaCardArs,S.mariaCardUsd)+(S.mariaOwnArs?' · de su plata '+F(S.mariaOwnArs,S.mariaOwnUsd):'');
   document.getElementById('fcMaria').textContent=F(S.owes*fx,S.owes);
   document.getElementById('fcMariaSub').textContent=(S.mariaOwnUsd>0?'25% menos lo que puso de su plata · ':'')+(S.aporte?'ya pagó '+F(S.aporte*fx,S.aporte)+(S.diff>1?' · falta '+F(S.diff*fx,S.diff):S.diff<-1?' · pasó de más '+F(-S.diff*fx,-S.diff):' · saldado ✓'):'sin pago registrado');
-  const mb=document.getElementById('famMariaBtn');if(mb)mb.onclick=()=>openMariaModal(k);
-  const ib=document.getElementById('famImportBtn');if(ib)ib.onclick=()=>alert('Importar resumen: es el próximo paso. El de agosto ya lo cargamos juntos.');
+  // Detalle de fijos + alquiler (se despliega al tocar la card)
+  const fl=document.getElementById('fcFixedList');
+  if(fl){
+    const items=[{n:'Alquiler',ars:alqArs,usd:S.alquiler,paid:true,due:''}].concat(fixed.filter(r=>(parseFloat(r.amount)||0)>0).map(r=>({n:r.item_name,ars:parseFloat(r.amount_ars)||0,usd:parseFloat(r.amount_usd)||0,paid:!!r.paid_date,due:r.due_date||''})));
+    fl.innerHTML='<div class="xp-month-title">Fijos + alquiler · '+mnName(k)+'</div>'+items.map(it=>'<div class="xp-row" style="grid-template-columns:1fr auto auto"><span class="xp-n">'+it.n+(it.paid?' <span class="xp-s">pagado</span>':(it.due?' <span class="xp-s" style="color:var(--amber)">vence '+homeDM(it.due)+'</span>':''))+'</span><span class="xp-u">'+F(it.ars,it.usd)+'</span><span class="xp-a">'+(famCur==='ARS'?('US$ '+Math.round(it.usd).toLocaleString('es-AR')):fmtARS(it.ars))+'</span></div>').join('')+
+      '<div class="xp-row xp-tot" style="grid-template-columns:1fr auto auto"><span class="xp-n">Total</span><span class="xp-u">'+F(alqArs+fijosArs,S.alquiler+S.fijosCasa)+'</span><span></span></div>';
+    const fc=document.getElementById('fcFixedCard');if(fc)fc.onclick=()=>{fl.style.display=fl.style.display==='none'?'block':'none';};
+  }
 }
 (function(){const t=document.getElementById('famCurToggle');if(t)t.addEventListener('click',e=>{const b=e.target.closest('.ex-scope-btn');if(!b)return;famCur=b.dataset.cur;if(months&&months.length)renderBudget(months[curIdx]);});})();
 
