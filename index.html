@@ -517,6 +517,21 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .budget-subtab{padding:.55rem 1.1rem;font-size:12px;font-weight:500;color:var(--text3);background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;font-family:'DM Sans',sans-serif;}
 .budget-subtab:hover{color:var(--text2);}
 .budget-subtab.active{color:var(--text);border-bottom-color:var(--primary);}
+#famCurRow{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px;flex-wrap:wrap;}
+.fam-title{font-size:13px;font-weight:700;}
+.fam-cur .ex-scope-btn{flex:none;padding:5px 12px;font-size:12px;}
+.fam-cur .ex-scope-btn.active{background:var(--primary);color:#fff;border-color:var(--primary);}
+.fam-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px;}
+@media(max-width:640px){.fam-grid{grid-template-columns:1fr;}}
+.fam-card.maria{background:var(--green-bg);border-color:#cfe7da;}
+.fam-card .metric-value{font-size:20px;}
+.xp-month-title{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);font-weight:600;margin-bottom:6px;}
+.xp-row{display:grid;grid-template-columns:44px 1fr auto auto;gap:8px;font-size:12px;padding:5px 0;border-bottom:1px solid var(--border);align-items:center;}
+.xp-row .xp-d{color:var(--text3);font-family:'DM Mono',monospace;}
+.xp-row .xp-s{color:var(--text3);font-size:11px;}
+.xp-row .xp-u{font-family:'DM Mono',monospace;font-weight:600;}
+.xp-row .xp-a{font-family:'DM Mono',monospace;color:var(--text3);font-size:11px;}
+.xp-row.xp-tot{border-bottom:none;font-weight:700;padding-top:8px;}
 .budget-item.zero{opacity:.62;}
 .budget-item.zero:hover{opacity:1;}
 .budget-subpanel{display:none;}
@@ -794,6 +809,10 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
     </div>
     <div class="budget-subpanel active" id="bsub-home">
     <!-- 1. Metric cards -->
+    <div id="famCurRow" style="display:none;">
+      <span class="fam-title">🏠 Family Economy · <span id="famMonth"></span></span>
+      <div class="ex-scope-toggle fam-cur" id="famCurToggle"><button type="button" class="ex-scope-btn active" data-cur="ARS">ARS $</button><button type="button" class="ex-scope-btn" data-cur="USD">USD</button></div>
+    </div>
     <div class="metrics-grid-2">
       <div class="metric-card">
         <div class="metric-label" id="mTotalLabel">Total gastado (ARS)</div>
@@ -801,20 +820,23 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
         <div class="metric-sub" id="mTotalSub">—</div>
       </div>
       <div class="metric-card clickable" id="mExtraCard" onclick="openExtraPoolModal()">
-        <div class="metric-label">Gastos extraordinarios</div>
+        <div class="metric-label" id="mExtraLabel">Gastos extraordinarios</div>
         <div class="metric-value" id="mExtraArs">—</div>
         <div class="metric-sub" id="mExtraUsd">—</div>
-        <div class="metric-hint">ver pozo anual →</div>
+        <div class="metric-hint">ver pozo anual y detalle →</div>
       </div>
     </div>
     <!-- 2. Add expense -->
     <button class="add-expense-btn" id="addExpenseBtn">
       <span style="font-size:18px;line-height:1;">+</span><span>Add expense</span>
     </button>
-    <div class="card" id="famExtras" style="display:none;margin-bottom:12px;">
-      <div class="cm-head"><div class="cm-title">🏠 La casa este mes</div><span class="cm-sub" id="famSub"></span></div>
-      <div class="hist-body" id="famBody">—</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+    <div id="famExtras" style="display:none;">
+      <div class="fam-grid">
+        <div class="metric-card fam-card"><div class="metric-label">Fijos + alquiler</div><div class="metric-value" id="fcFixed">—</div><div class="metric-sub" id="fcFixedSub">—</div></div>
+        <div class="metric-card fam-card"><div class="metric-label">Variables · quién puso</div><div class="metric-value" id="fcVar">—</div><div class="metric-sub" id="fcVarSub">—</div></div>
+        <div class="metric-card fam-card maria"><div class="metric-label">A María le toca (25%)</div><div class="metric-value" id="fcMaria">—</div><div class="metric-sub" id="fcMariaSub">—</div></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;">
         <button class="hc-go" id="famMariaBtn">Mes de María →</button>
         <button class="hc-go quiet" id="famImportBtn" title="Pegar el resumen de la tarjeta y cargar lo que falta (próximo paso)">Importar resumen · pronto</button>
       </div>
@@ -1102,6 +1124,7 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
           <div class="bsum-track"><div class="bsum-fill" id="xpFill"></div><div class="bsum-mark" id="xpIdeal"></div></div>
           <div class="bsum-foot"><span id="xpVerdict">—</span><span id="xpFoot" class="bsum-pace-lbl">—</span></div>
         </div>
+        <div id="xpMonth" style="margin-top:14px;"></div>
         <p style="font-size:12px;color:var(--text3);margin-top:16px;line-height:1.5;">Los extraordinarios corren <strong>en paralelo</strong> a tu meta de gasto variable — no la tocan. El pozo está dimensionado para que tu ahorro quede entre 30% y 40% del ingreso: la marca verde es el nivel ideal (ahorro 40%) y el tope es el piso de 30%.</p>
       </div>
     </div>
@@ -2680,13 +2703,23 @@ function renderBudget(k){
     subTotEl.className='metric-sub neutral';
   }
   // Card 2 — Extraordinary expenses (ARS + USD)
-  const extraRows=monthExtraData(k);
+  const extraRows=monthExtraData(k).filter(inBudgetScope).sort((a,b)=>b.date-a.date);
   const extraArs=extraRows.reduce((s,r)=>s+(r.amt||0),0);
   const extraUsd=extraRows.reduce((s,r)=>s+(r.amtUsd||0),0);
-  document.getElementById('mExtraArs').textContent=extraArs?fmtARS(extraArs):'—';
+  document.getElementById('mExtraLabel').textContent=budgetScope==='casa'?'✨ Extraordinarios de la familia':'✨ Extraordinarios';
+  // Grande en USD, chico la conversión a pesos
+  document.getElementById('mExtraArs').textContent=extraUsd?('US$ '+Math.round(extraUsd).toLocaleString('es-AR')):'—';
   const extraUsdEl=document.getElementById('mExtraUsd');
-  extraUsdEl.textContent=extraUsd?('US$ '+Math.round(extraUsd).toLocaleString('en-US')):(extraRows.length?'—':'sin extraordinarios');
+  extraUsdEl.textContent=extraArs?('≈ '+fmtARS(extraArs)+' · '+extraRows.length+(extraRows.length===1?' gasto':' gastos')):'sin extraordinarios este mes';
   extraUsdEl.className='metric-sub neutral';
+  // Detalle del mes dentro del modal del pozo
+  const xm=document.getElementById('xpMonth');
+  if(xm){
+    xm.innerHTML='<div class="xp-month-title">'+(budgetScope==='casa'?'Extraordinarios de la familia':'Tus extraordinarios')+' · '+mnName(k)+'</div>'+
+      (extraRows.length?extraRows.map(r=>'<div class="xp-row"><span class="xp-d">'+fmtDay(r.date)+'</span><span class="xp-n">'+r.name+(r.sub?' <span class="xp-s">'+r.sub+'</span>':'')+'</span><span class="xp-u">US$ '+Math.round(r.amtUsd||0).toLocaleString('es-AR')+'</span><span class="xp-a">'+fmtARS(r.amt||0)+'</span></div>').join('')+
+        '<div class="xp-row xp-tot"><span></span><span class="xp-n">Total del mes</span><span class="xp-u">US$ '+Math.round(extraUsd).toLocaleString('es-AR')+'</span><span class="xp-a">'+fmtARS(extraArs)+'</span></div>'
+      :'<div style="font-size:12px;color:var(--text3);padding:6px 0;">Sin extraordinarios este mes.</div>');
+  }
   // overList still computed for "Categorías excedidas" warning in budget grid below
 
   // Pie
@@ -2816,25 +2849,47 @@ function renderBudget(k){
   renderMonthExpensesList(k);
   renderFamExtras(k);
 }
-// ── Family Economy: bloque extra (solo en la solapa Casa) ──
-function renderFamExtras(k){
-  const box=document.getElementById('famExtras');if(!box)return;
-  if(budgetScope!=='casa'){box.style.display='none';return;}
-  box.style.display='block';
-  let S=null;try{S=casaMioSummary(k);}catch(e){}
-  const N=v=>Math.round(v).toLocaleString('es-AR');
-  document.getElementById('famSub').textContent=mnName(k);
-  if(!S){document.getElementById('famBody').textContent='—';return;}
-  const rows=scopedVarData(k);
-  const tot=rows.reduce((s,r)=>s+r.amt,0);
-  const card=S.mariaCardArs,own=S.mariaOwnArs,mine=tot-card-own;
-  document.getElementById('famBody').innerHTML=
-    '<b>La casa costó US$ '+N(S.casa)+'</b> (alquiler '+N(S.alquiler)+' · fijos '+N(S.fijosCasa)+' · variables '+N(S.varCasa)+').<br>'+
-    'Variables de la casa: <b>ARS '+N(tot)+'</b> → vos ARS '+N(mine)+' · María con tu tarjeta ARS '+N(card)+' · María de su plata ARS '+N(own)+'.<br>'+
-    'A María le tocan <b>US$ '+N(S.owes)+'</b> este mes'+(S.aporte?' · ya pagó US$ '+N(S.aporte):'')+'.';
-  const mb=document.getElementById('famMariaBtn');if(mb)mb.onclick=()=>openMariaModal(k);
-  const ib=document.getElementById('famImportBtn');if(ib)ib.onclick=()=>alert('Importar resumen: es el próximo paso. Por ahora, el resumen de agosto ya lo cargamos juntos.');
+// ── Family Economy: cards (solo en la solapa Casa), con toggle ARS/USD ──
+let famCur='ARS';
+function monthFxFor(k){
+  const vr=varRows.filter(r=>mk(r.date)===k&&(r.amtUsd||0)>0);
+  const a=vr.reduce((s,r)=>s+r.amt,0),u=vr.reduce((s,r)=>s+r.amtUsd,0);
+  if(a>0&&u>0)return a/u;
+  const fr=(fixedRows||[]).filter(r=>String(r.month_year).slice(0,7)===k&&(parseFloat(r.amount_usd)||0)>0&&(parseFloat(r.amount_ars)||0)>0);
+  if(fr.length)return fr.reduce((s,r)=>s+parseFloat(r.amount_ars),0)/fr.reduce((s,r)=>s+parseFloat(r.amount_usd),0);
+  const last=varRows.slice().reverse().find(r=>r.fx>0);return last?last.fx:1530;
 }
+function renderFamExtras(k){
+  const box=document.getElementById('famExtras'),cr=document.getElementById('famCurRow');if(!box)return;
+  if(budgetScope!=='casa'){box.style.display='none';if(cr)cr.style.display='none';return;}
+  box.style.display='block';if(cr)cr.style.display='flex';
+  document.getElementById('famMonth').textContent=mnName(k);
+  document.querySelectorAll('#famCurToggle .ex-scope-btn').forEach(b=>b.classList.toggle('active',b.dataset.cur===famCur));
+  let S=null;try{S=casaMioSummary(k);}catch(e){}
+  if(!S)return;
+  const fx=monthFxFor(k);
+  const fixed=(fixedRows||[]).filter(r=>String(r.month_year).slice(0,7)===k&&!r.asset_name&&FIXED_ITEMS.includes(r.item_name)&&!FIXED_MIO_ITEMS.includes(r.item_name));
+  const fijosArs=fixed.reduce((s,r)=>s+(parseFloat(r.amount_ars)||0),0);
+  const alqArs=S.alquiler*fx;
+  const vars=scopedVarData(k);const varArs=vars.reduce((s,r)=>s+r.amt,0);
+  const mineArs=varArs-S.mariaCardArs-S.mariaOwnArs;
+  const F=(ars,usd)=>famCur==='ARS'?fmtARS(ars):('US$ '+Math.round(usd).toLocaleString('es-AR'));
+  const casaArs=alqArs+fijosArs+varArs;
+  // Card 1 (la primera de arriba): Casa total del mes
+  document.getElementById('mTotalLabel').textContent='🏠 Casa total · '+(famCur==='ARS'?'ARS':'USD');
+  document.getElementById('mTotal').textContent=F(casaArs,S.casa);
+  const sub=document.getElementById('mTotalSub');sub.textContent='Alquiler '+F(alqArs,S.alquiler)+' · Fijos '+F(fijosArs,S.fijosCasa)+' · Variables '+F(varArs,S.varCasa);sub.className='metric-sub neutral';
+  // Cards de composición
+  document.getElementById('fcFixed').textContent=F(alqArs+fijosArs,S.alquiler+S.fijosCasa);
+  document.getElementById('fcFixedSub').textContent='Alquiler '+F(alqArs,S.alquiler)+' · '+fixed.filter(r=>(parseFloat(r.amount)||0)>0).map(r=>r.item_name.replace(' Diaz Velez','').replace(' Casa','').replace(' Verisure','')).join(', ')+' '+F(fijosArs,S.fijosCasa);
+  document.getElementById('fcVar').textContent=F(varArs,S.varCasa);
+  document.getElementById('fcVarSub').textContent='Vos '+F(mineArs,S.varCasa-S.mariaCardUsd-S.mariaOwnUsd)+' · María con tu tarjeta '+F(S.mariaCardArs,S.mariaCardUsd)+(S.mariaOwnArs?' · de su plata '+F(S.mariaOwnArs,S.mariaOwnUsd):'');
+  document.getElementById('fcMaria').textContent=F(S.owes*fx,S.owes);
+  document.getElementById('fcMariaSub').textContent=(S.mariaOwnUsd>0?'25% menos lo que puso de su plata · ':'')+(S.aporte?'ya pagó '+F(S.aporte*fx,S.aporte)+(S.diff>1?' · falta '+F(S.diff*fx,S.diff):S.diff<-1?' · pasó de más '+F(-S.diff*fx,-S.diff):' · saldado ✓'):'sin pago registrado');
+  const mb=document.getElementById('famMariaBtn');if(mb)mb.onclick=()=>openMariaModal(k);
+  const ib=document.getElementById('famImportBtn');if(ib)ib.onclick=()=>alert('Importar resumen: es el próximo paso. El de agosto ya lo cargamos juntos.');
+}
+(function(){const t=document.getElementById('famCurToggle');if(t)t.addEventListener('click',e=>{const b=e.target.closest('.ex-scope-btn');if(!b)return;famCur=b.dataset.cur;if(months&&months.length)renderBudget(months[curIdx]);});})();
 
 function renderMonthExpensesList(k){
   const all=varRows.filter(r=>mk(r.date)===k&&inBudgetScope(r)).sort((a,b)=>b.date-a.date);
@@ -4823,8 +4878,8 @@ let exScope='mio',exScopeTouched=false;
 const exScopeRow=document.getElementById('exScopeRow');
 function setExScope(sc){exScope=(sc==='casa')?'casa':'mio';document.querySelectorAll('#exScopeToggle .ex-scope-btn').forEach(b=>b.classList.toggle('active',b.dataset.scope===exScope));}
 function exApplyScopeDefault(cat){
-  if(exScopeRow)exScopeRow.style.display=(cat==='Extraordinary')?'none':'block';
-  if(!exScopeTouched)setExScope(scopeForCat(cat));
+  if(exScopeRow)exScopeRow.style.display='block';
+  if(!exScopeTouched)setExScope(cat==='Extraordinary'?(budgetScope==='casa'?'casa':'mio'):scopeForCat(cat));
 }
 document.getElementById('exScopeToggle').addEventListener('click',e=>{const b=e.target.closest('.ex-scope-btn');if(!b)return;exScopeTouched=true;setExScope(b.dataset.scope);});
 let exEditingFx=null;
@@ -4866,8 +4921,8 @@ function exOpenModal(row){
     exFxDisplay.className='fx-display ok';
     exFxDisplay.textContent='TC original (no se modifica al editar): '+fmtFx(row.fx||0);
     exCurrentFx=row.fx||null;
-    exScopeTouched=true;setExScope(row.scope||scopeForCat(row.cat));
-    if(exScopeRow)exScopeRow.style.display=(row.cat==='Extraordinary')?'none':'block';
+    exScopeTouched=true;setExScope(row.scope||(row.cat==='Extraordinary'?'mio':scopeForCat(row.cat)));
+    if(exScopeRow)exScopeRow.style.display='block';
   }else{
     // Modo nuevo
     exEditingId=null;
@@ -5110,7 +5165,7 @@ document.getElementById('fixedSaveBtn').onclick=saveFixedExpenses;
       exSubmitBtn.disabled=true;
       exSubmitBtn.textContent='Guardando...';
       try{
-        const payload={date,name,amount:amount_ars,category:'Extraordinary',ars_per_usd:fx,amount_usd,subcategory:exSubCatSelected,is_extraordinary:true,currency:exCurrency};
+        const payload={date,name,amount:amount_ars,category:'Extraordinary',ars_per_usd:fx,amount_usd,subcategory:exSubCatSelected,is_extraordinary:true,currency:exCurrency,scope:(exScopeTouched?exScope:(budgetScope==='casa'?'casa':'mio'))};
         try{localStorage.setItem('exLastCurrency',exCurrency);}catch(_){}
         if(isEdit){
           const{error}=await sb.from('expenses').update(payload).eq('id',exEditingId);
