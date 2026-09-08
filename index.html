@@ -84,6 +84,13 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:.
 .hc-closed .m{margin-left:auto;font-family:'DM Mono',monospace;font-weight:500;font-size:12px;}
 .hl{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px 14px;display:flex;flex-direction:column;gap:6px;margin-bottom:12px;}
 .hl-t{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);font-weight:600;}
+.hl-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:4px;}
+.hl-title{font-size:16px;font-weight:700;}
+.hl-sub{font-size:12px;color:var(--text2);}
+.hl-empty{font-size:13px;color:var(--green);font-weight:600;padding:2px 0;}
+.hc-done{display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;user-select:none;font-size:13px;font-weight:600;color:var(--green);border-top:1px solid var(--border);}
+.hc-done .n{background:var(--green-bg);border-radius:999px;padding:2px 9px;font-size:12px;}
+.hc-done .c{margin-left:auto;color:var(--text3);font-size:12px;font-weight:500;}
 .hl-l{display:flex;gap:8px;align-items:center;font-size:13px;}
 .hl-l .hc-st{width:14px;height:14px;font-size:9px;}
 .hl-l .hc-det{margin-left:auto;text-align:right;}
@@ -697,6 +704,7 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
   <!-- TAB: BALANCE -->
   <div class="tab-panel active" id="tab-home">
     <div class="home-hello"><span class="home-h">Hola, Mariano</span><span class="home-d" id="homeDate"></span></div>
+    <div id="homeLive"></div>
     <div id="homeCierre"></div>
     <div class="card" id="casaMioCard" style="margin-bottom:12px;">
       <div class="cm-head"><div class="cm-title">Casa vs Personal</div><span class="cm-sub" id="cmMonth"></span></div>
@@ -706,7 +714,6 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
       </div>
       <div class="cm-settle" id="cmSettle"></div>
     </div>
-    <div id="homeLive"></div>
     <div class="card" id="coachCard" style="margin-bottom:12px;">
       <div class="cm-head"><div class="cm-title">🧭 Coach</div><span class="cm-sub" id="coachSub">v0 · definimos juntos qué te dice</span></div>
       <div class="hist-body" id="coachBody">—</div>
@@ -2187,6 +2194,7 @@ function renderCoach(k,name){
 
 // ══════════ HOME — cierre del mes guiado ══════════
 let homeCierreOpen=null; // null = automático (abierto si hay pendientes); true/false = forzado por el usuario
+let homeDoneOpen=false;   // desplegar los ítems ya listos (✓) dentro del cierre
 let homeBusyFlag=false;
 const HOME_MONTHS=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const HOME_DAYS=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
@@ -2362,7 +2370,10 @@ function homeLiveHtml(today){
   if(last){const l=new Date(last);l.setHours(0,0,0,0);const dd=Math.round((today-l)/86400000);
     lines.push({st:dd<=3?'ok':'mid',txt:'Último gasto cargado',det:dd<=0?'hoy':dd===1?'ayer':'hace '+dd+' días',cls:dd<=3?'':'mid'});}
   const ic={ok:'✓',no:'!',mid:'!',off:'·'};
-  return '<div class="hl"><div class="hl-t">'+homeMonthName(k)+' en curso</div>'+lines.map(l=>'<div class="hl-l"><span class="hc-st '+l.st+'">'+ic[l.st]+'</span><span>'+l.txt+'</span><span class="hc-det '+l.cls+'">'+l.det+'</span></div>').join('')+'</div>';
+  const dim=new Date(today.getFullYear(),today.getMonth()+1,0).getDate();
+  const urgent=lines.filter(l=>l.st==='no'||l.st==='mid').length;
+  const head='<div class="hl-head"><div class="hl-title">'+homeMonthName(k)+' <span style="font-weight:500;color:var(--text3)">· en curso</span></div><div class="hl-sub">día '+today.getDate()+' de '+dim+(urgent?' · <span style="color:var(--amber);font-weight:600">'+urgent+(urgent===1?' cosa para atender':' cosas para atender')+'</span>':'')+'</div></div>';
+  return '<div class="hl">'+head+(lines.length?lines.map(l=>'<div class="hl-l"><span class="hc-st '+l.st+'">'+ic[l.st]+'</span><span>'+l.txt+'</span><span class="hc-det '+l.cls+'">'+l.det+'</span></div>').join(''):'<div class="hl-empty">✓ Nada por vencer ni pendiente esta semana</div>')+'</div>';
 }
 function renderHome(){
   const el=document.getElementById('homeCierre');if(!el)return;
@@ -2385,10 +2396,13 @@ function renderHome(){
   }else{
     const pct=total?done/total:0;
     const color=day<=3?'var(--amber)':(pct>=.5?'var(--primary)':'var(--red)');
-    const sub='Falta'+(pend===1?' 1 cosa':'n '+pend+' cosas')+' · '+(day<=3?'<span class="calm">'+name.toLowerCase()+' recién terminó</span>':'<span class="warn">terminó hace '+daysSince+(daysSince===1?' día':' días')+'</span>');
+    const sub=done+(done===1?' listo':' listos')+' · <b>'+pend+(pend===1?' pendiente':' pendientes')+'</b> · '+(day<=3?'<span class="calm">'+name.toLowerCase()+' recién terminó</span>':'<span class="warn">terminó hace '+daysSince+(daysSince===1?' día':' días')+'</span>');
     html+='<div class="hc"><div class="hc-head" id="hcToggle">'+homeRing(pct,color,done+'/'+total)+'<div><div class="hc-title">Cierre de '+name+'</div><div class="hc-sub">'+sub+'</div></div><span class="hc-caret">'+(open?'▴':'▾')+'</span></div>';
     if(open){
-      html+='<div class="hc-list">'+items.map(rowHtml).join('')+'</div>';
+      const pendItems=items.map((it,i)=>[it,i]).filter(([it])=>it.st!=='ok'),doneItems=items.map((it,i)=>[it,i]).filter(([it])=>it.st==='ok');
+      html+='<div class="hc-list">'+pendItems.map(([it,i])=>rowHtml(it,i)).join('')+
+        (doneItems.length?'<div class="hc-done" id="hcDoneToggle"><span class="n">✓ '+doneItems.length+'</span>'+(doneItems.length===1?'listo':'listos')+'<span class="c">'+(homeDoneOpen?'ocultar ▴':'ver ▸')+'</span></div>'+(homeDoneOpen?doneItems.map(([it,i])=>rowHtml(it,i)).join(''):''):'')+
+        '</div>';
       const hasOne=items.some(it=>it.acts.some(a=>a.one));
       let cm='';try{const S=casaMioSummary(k);cm='<div style="margin-bottom:4px">🏠 Casa '+homeFmtU(S.casa)+' · 👤 Personal '+homeFmtU(S.mio)+' · María le toca '+homeFmtU(S.owes)+(S.aporte?' (aportó '+homeFmtU(S.aporte)+')':'')+'</div>';}catch(e){}
       html+='<div class="hc-foot">'+cm+(hasOne?'Los botones azules cargan con un toque el mismo valor del mes pasado. ':'')+'Airbnb varía cada mes: te lleva a su card en Investments con el formulario listo.</div>';
@@ -2400,6 +2414,7 @@ function renderHome(){
   try{renderHistCard();}catch(e){console.warn('hist:',e);}
   try{renderCoach(k,name);}catch(e){console.warn('coach:',e);}
   const tg=document.getElementById('hcToggle');if(tg)tg.onclick=()=>{homeCierreOpen=!open;renderHome();};
+  const dt=document.getElementById('hcDoneToggle');if(dt)dt.onclick=e=>{e.stopPropagation();homeDoneOpen=!homeDoneOpen;renderHome();};
   el.querySelectorAll('.hc-go').forEach(b=>b.onclick=()=>{const a=items[+b.dataset.i].acts[+b.dataset.j];if(!a)return;if(a.one)homeRun(b,a.fn);else a.fn();});
   const live=document.getElementById('homeLive');if(live)live.innerHTML=homeLiveHtml(today);
   updateBudgetAlertDot();
