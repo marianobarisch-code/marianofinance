@@ -94,6 +94,14 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:.
 .hl-l{display:flex;gap:8px;align-items:center;font-size:13px;}
 .hl-l .hc-st{width:14px;height:14px;font-size:9px;}
 .hl-l .hc-det{margin-left:auto;text-align:right;}
+.hl-pin{align-items:flex-start;background:var(--amber-bg);border-radius:10px;padding:8px 10px;margin:2px -4px;}
+.hl-pin .hc-st{margin-top:2px;}
+.hl-pin-b{flex:1;min-width:0;}
+.hl-pin-b>div:first-child{font-weight:600;}
+.hl-pin .hc-det{margin-left:0;text-align:left;font-family:'DM Sans',sans-serif;}
+.hl-pin-ok{align-self:center;}
+.hl-add{font-size:12px;color:var(--text3);cursor:pointer;padding:4px 0 0;user-select:none;}
+.hl-add:hover{color:var(--primary);}
 .home-quick{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
 .hq{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 4px;text-align:center;font-size:10.5px;line-height:1.2;font-weight:600;color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif;}
 .hq:hover{border-color:var(--primary);color:var(--text);}
@@ -1361,6 +1369,7 @@ const nwSlug=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').
 let sbNwRows=[];
 let assetFlows=[]; // asset_flows: inyecciones/retiros de capital por asset productivo (tab Investments)
 let littioPots=[]; // littio_pots: plazos fijos de Littio (capital, plazo, tasa, estado)
+let homePins=[];  // home_pins: recordatorios sueltos que viven en la card del mes en curso hasta marcarlos listos
 const LITTIO_POTS='Littio (Pots)';
 const DEPTO_ASSET='Inmueble - Depto Libertador'; // gastos del Depto: fixed_expenses con asset_name=DEPTO (espejo, no gasto personal)
 const DEPTO_ITEMS=['Expensas','Edenor','Internet','ABL']; // recordatorios fijos del Depto (siempre presentes cada mes)
@@ -1541,6 +1550,24 @@ async function fetchAssetFlows(){
   if(error){console.warn('asset_flows fetch (¿tabla creada?):',error.message);return[];}
   return data||[];
 }
+async function fetchHomePins(){
+  const{data,error}=await sb.from('home_pins').select('*').is('done_at',null).order('created_at',{ascending:true});
+  if(error){console.warn('home_pins fetch (¿tabla creada?):',error.message);return[];}
+  return data||[];
+}
+async function homePinDone(id){
+  if(!confirm('¿Marcar como resuelto? Desaparece del Home.'))return;
+  const{error}=await sb.from('home_pins').update({done_at:new Date().toISOString()}).eq('id',id);
+  if(error){alert('No se pudo marcar: '+error.message);return;}
+  homePins=await fetchHomePins();renderHome();
+}
+async function homePinAdd(){
+  const title=prompt('¿Qué no querés que se te pase? (título corto)');if(!title||!title.trim())return;
+  const note=prompt('Detalle (opcional)')||'';
+  const{error}=await sb.from('home_pins').insert({title:title.trim(),note:note.trim()||null,month:homeKey(new Date())});
+  if(error){alert('No se pudo guardar: '+error.message);return;}
+  homePins=await fetchHomePins();renderHome();
+}
 async function fetchLittioPots(){
   const{data,error}=await sb.from('littio_pots').select('*').order('start_date',{ascending:false});
   if(error){console.warn('littio_pots fetch (¿tabla creada?):',error.message);return[];}
@@ -1562,7 +1589,7 @@ async function loadData(){
   setStatus('Cargando...','loading');
   try{
    sheetSnapshots=await fetchSheetSnapshots();
-   const[varVals,balVals,nwVals,sbExpenses,sbNw,sbFixed,sbMb,sbCb,sbSubs,sbIncome,sbFlows,sbPots]=await Promise.all([
+   const[varVals,balVals,nwVals,sbExpenses,sbNw,sbFixed,sbMb,sbCb,sbSubs,sbIncome,sbFlows,sbPots,sbPins]=await Promise.all([
       fetchSheet('Variables!A:D'),
       fetchSheet("'Income and Expending'!A:BZ"),
       fetchSheet("'Net Worth'!A:BZ"),
@@ -1574,9 +1601,11 @@ async function loadData(){
       fetchSubscriptions(),
       fetchIncomeEntries(),
       fetchAssetFlows(),
-      fetchLittioPots()
+      fetchLittioPots(),
+      fetchHomePins()
     ]);
     sbNwRows=sbNw;
+    homePins=sbPins;
     assetFlows=sbFlows;
     littioPots=sbPots;
     fixedRows=sbFixed;
@@ -2365,6 +2394,10 @@ function homeLiveHtml(today){
   const exp=homeFixedExpected(k);const rows=homeFixedRows(k);
   const noAmt=exp.filter(n=>{const r=rows.find(x=>x.item_name===n);return !r||!(parseFloat(r.amount)||0);});
   if(noAmt.length)lines.push({st:'off',txt:homeEsc(noAmt.join(', '))+': sin monto todavía',det:'esperando factura',cls:''});
+  // pines: recordatorios abiertos (de este mes o arrastrados de meses anteriores)
+  (homePins||[]).filter(p=>!p.done_at&&p.month<=k).forEach(p=>{
+    lines.push({st:'mid',txt:'📌 '+homeEsc(p.title),det:homeEsc(p.note||(p.month<k?'desde '+homeMonthName(p.month).toLowerCase():'pendiente')),cls:'mid',pin:p.id});
+  });
   // último gasto cargado
   let last=null;(varRows||[]).forEach(r=>{const d=homeVarDate(r);if(!isNaN(d)&&(!last||d>last))last=d;});
   if(last){const l=new Date(last);l.setHours(0,0,0,0);const dd=Math.round((today-l)/86400000);
@@ -2373,7 +2406,10 @@ function homeLiveHtml(today){
   const dim=new Date(today.getFullYear(),today.getMonth()+1,0).getDate();
   const urgent=lines.filter(l=>l.st==='no'||l.st==='mid').length;
   const head='<div class="hl-head"><div class="hl-title">'+homeMonthName(k)+' <span style="font-weight:500;color:var(--text3)">· en curso</span></div><div class="hl-sub">día '+today.getDate()+' de '+dim+(urgent?' · <span style="color:var(--amber);font-weight:600">'+urgent+(urgent===1?' cosa para atender':' cosas para atender')+'</span>':'')+'</div></div>';
-  return '<div class="hl">'+head+(lines.length?lines.map(l=>'<div class="hl-l"><span class="hc-st '+l.st+'">'+ic[l.st]+'</span><span>'+l.txt+'</span><span class="hc-det '+l.cls+'">'+l.det+'</span></div>').join(''):'<div class="hl-empty">✓ Nada por vencer ni pendiente esta semana</div>')+'</div>';
+  const row=l=>l.pin
+    ?'<div class="hl-l hl-pin"><span class="hc-st '+l.st+'">'+ic[l.st]+'</span><div class="hl-pin-b"><div>'+l.txt+'</div><div class="hc-det '+l.cls+'">'+l.det+'</div></div><button class="hc-go quiet hl-pin-ok" data-pin="'+l.pin+'">✓ listo</button></div>'
+    :'<div class="hl-l"><span class="hc-st '+l.st+'">'+ic[l.st]+'</span><span>'+l.txt+'</span><span class="hc-det '+l.cls+'">'+l.det+'</span></div>';
+  return '<div class="hl">'+head+(lines.length?lines.map(row).join(''):'<div class="hl-empty">✓ Nada por vencer ni pendiente esta semana</div>')+'<div class="hl-add" id="hlPinAdd">+ anotar algo para no olvidarme</div></div>';
 }
 function renderHome(){
   const el=document.getElementById('homeCierre');if(!el)return;
@@ -2416,7 +2452,9 @@ function renderHome(){
   const tg=document.getElementById('hcToggle');if(tg)tg.onclick=()=>{homeCierreOpen=!open;renderHome();};
   const dt=document.getElementById('hcDoneToggle');if(dt)dt.onclick=e=>{e.stopPropagation();homeDoneOpen=!homeDoneOpen;renderHome();};
   el.querySelectorAll('.hc-go').forEach(b=>b.onclick=()=>{const a=items[+b.dataset.i].acts[+b.dataset.j];if(!a)return;if(a.one)homeRun(b,a.fn);else a.fn();});
-  const live=document.getElementById('homeLive');if(live)live.innerHTML=homeLiveHtml(today);
+  const live=document.getElementById('homeLive');if(live){live.innerHTML=homeLiveHtml(today);
+    live.querySelectorAll('.hl-pin-ok').forEach(b=>b.onclick=()=>homePinDone(b.dataset.pin));
+    const pa=document.getElementById('hlPinAdd');if(pa)pa.onclick=homePinAdd;}
   updateBudgetAlertDot();
 }
 (function(){
@@ -3075,6 +3113,8 @@ function updateBudgetAlertDot(){
   const parts=[];
   if(n>0)parts.push(n+(n===1?' pago por vencer':' pagos por vencer'));
   if(pend>0)parts.push(pend+(pend===1?' pendiente del cierre':' pendientes del cierre'));
+  const pins=(homePins||[]).filter(p=>!p.done_at).length;
+  if(pins>0)parts.push(pins+(pins===1?' recordatorio':' recordatorios'));
   if(parts.length){dot.classList.add('show');dot.title=parts.join(' · ');}
   else{dot.classList.remove('show');}
 }
