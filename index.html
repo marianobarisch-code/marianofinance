@@ -1419,7 +1419,7 @@ const CATEGORIES=['Planes Amigos','Uber/Taxis','Planes Maria','Salud','Comidas',
 const CAT_ICONS={'Supermercados':'🛒','Suplementos':'💊','Planes Familia':'👨‍👩‍👧','Planes Maria':'💑','Comidas':'🍽️','Auto':'🚗','Café':'☕','Planes Amigos':'🍻','Actividad Física':'🏋️','Estética':'💅','Salud':'🩺','Delivery':'🛵','Uber/Taxis':'🚕','Hogar':'🏠','Eventos':'🎉','Mascotas':'🐾','Ropa':'👕','Otros':'🎲','Extraordinary':'✨'};
 const catIcon=c=>CAT_ICONS[c]||'🎲';
 // ── Casa / Mío: para quién fue cada gasto (default por categoría; se guarda por gasto) ──
-const SCOPE_CASA_CATS=['Supermercados','Hogar','Mascotas','Planes Maria','Delivery'];
+const SCOPE_CASA_CATS=['Supermercados','Hogar','Mascotas','Planes Maria','Delivery','Auto']; // Auto (nafta, lavado) es Casa desde sep-2026; Seguro/Patente siguen en FIXED_MIO_ITEMS
 const scopeForCat=c=>SCOPE_CASA_CATS.includes(c)?'casa':'mio';
 const FIXED_MIO_ITEMS=['Megatlon','Seguro','Patente']; // fijos que son Mío; el resto de los fijos y el alquiler son Casa
 // Si todavía no se corrió casa-mio.sql, la base no tiene las columnas scope/payer: detectar y reintentar sin ellas.
