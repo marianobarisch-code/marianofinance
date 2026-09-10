@@ -103,6 +103,8 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:.
 .hl-add{font-size:12px;color:var(--text3);cursor:pointer;padding:4px 0 0;user-select:none;}
 .hl-add:hover{color:var(--primary);}
 .home-quick{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
+.budget-hidden-note{grid-column:1/-1;font-size:12px;color:var(--text3);cursor:pointer;user-select:none;padding:2px 2px 4px;}
+.budget-hidden-note:hover{color:var(--primary);}
 .hq{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 4px;text-align:center;font-size:10.5px;line-height:1.2;font-weight:600;color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif;}
 .hq:hover{border-color:var(--primary);color:var(--text);}
 .hq .i{font-size:18px;display:block;margin-bottom:2px;}
@@ -2810,7 +2812,11 @@ function renderBudget(k){
 
   // Budgets grid: TODAS las categorías de la solapa (también las que están en cero), para poder mover presupuesto entre ellas
   const scopeCats=CATEGORIES.filter(c=>c!=='Extraordinary'&&(budgetScope==='casa'?scopeForCat(c)==='casa':scopeForCat(c)!=='casa'));
-  const gridCats=[...new Set([...sorted.map(([c])=>c),...scopeCats])].map(c=>[c,cats[c]||0]).sort((a,b)=>(b[1]-a[1])||a[0].localeCompare(b[0]));
+  const gridAll=[...new Set([...sorted.map(([c])=>c),...scopeCats])].map(c=>[c,cats[c]||0]).sort((a,b)=>(b[1]-a[1])||a[0].localeCompare(b[0]));
+  // Presupuesto 0 y sin gasto en el mes → la card se oculta (link "ocultas" abajo para recuperarlas)
+  const hiddenCats=gridAll.filter(([cat,spent])=>!(budgets[cat]||0)&&!spent&&budgetEditCat!==cat);
+  const gridCats=budgetShowHidden?gridAll:gridAll.filter(x=>!hiddenCats.includes(x));
+  const hiddenNote=hiddenCats.length?`<div class="budget-hidden-note" onclick="budgetShowHidden=!budgetShowHidden;renderBudget(months[curIdx]);">${budgetShowHidden?'ocultar las que están en cero ▴':hiddenCats.length+(hiddenCats.length===1?' categoría oculta':' categorías ocultas')+' (sin presupuesto ni gasto) ▸'}</div>`:'';
   document.getElementById('budgetsGrid').innerHTML=gridCats.map(([cat,spent])=>{
     const bud=budgets[cat]||0;
     const escCat=cat.replace(/'/g,"\\'");
@@ -2834,7 +2840,7 @@ function renderBudget(k){
       <div class="budget-blocks">${blocks}</div>
       <div class="budget-amounts"><span>${fmtARS(spent)}</span>${bud>0?`<span>de ${fmtARS(bud)}</span>`:''}</div>
     </div>`;
-  }).join('');
+  }).join('')+hiddenNote;
   if(budgetEditCat){const _i=document.getElementById('budgetEditInput');if(_i){_i.focus();_i.select();}}
 
   // ── Resumen: gasto variable total vs presupuesto total + ritmo del mes ──
@@ -3020,6 +3026,7 @@ async function saveCategoryBudgets(){
 
 // ── INLINE per-card budget edit ───────────────────────────────
 let budgetEditCat=null;
+let budgetShowHidden=false; // mostrar las categorías con presupuesto 0 y sin gasto (ocultas por defecto)
 function startBudgetEdit(cat){budgetEditCat=cat;renderBudget(months[curIdx]);}
 function cancelBudgetEdit(){budgetEditCat=null;renderBudget(months[curIdx]);}
 async function saveSingleBudget(cat){
