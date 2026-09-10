@@ -336,11 +336,21 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .bsum-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;font-weight:500;margin-bottom:3px;}
 .bsum-amounts{font-size:15px;font-weight:600;color:var(--text);font-family:'DM Mono',monospace;}
 .bsum-pct{font-size:26px;font-weight:700;font-family:'DM Mono',monospace;line-height:1;flex-shrink:0;}
-.bsum-track{position:relative;height:20px;background:var(--surface2);border-radius:6px;margin:4px 0;}
-.bsum-fill{position:absolute;left:0;top:0;height:100%;border-radius:6px;transition:width .4s ease;}
-.bsum-pace{position:absolute;top:-3px;bottom:-3px;width:3px;background:var(--text2);border-radius:2px;}
-.bsum-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:9px;font-size:12px;}
-.bsum-foot #bsumVerdict{font-weight:600;}
+.bsum-big{font-size:24px;font-weight:700;font-family:'DM Mono',monospace;font-variant-numeric:tabular-nums;line-height:1.05;}
+.bsum-big small{font-size:13px;font-weight:500;color:var(--text2);}
+.bsum-sub{font-size:12px;color:var(--text2);margin-top:5px;}
+.bsum-sub b{font-family:'DM Mono',monospace;font-weight:600;color:var(--text);}
+.bsum-pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;border-radius:999px;padding:4px 10px;white-space:nowrap;flex-shrink:0;}
+.bsum-pill i{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block;}
+.bsum-pill.ok{color:var(--green);background:var(--green-bg);}
+.bsum-pill.mid{color:var(--amber);background:var(--amber-bg);}
+.bsum-pill.no{color:var(--red);background:var(--red-bg);}
+.bsum-track{position:relative;height:8px;background:var(--surface2);border-radius:4px;margin:14px 0 6px;}
+.bsum-fill{position:absolute;left:0;top:0;height:100%;border-radius:4px;transition:width .4s ease;}
+.bsum-proj{position:absolute;top:0;height:100%;border-radius:0 4px 4px 0;opacity:.32;transition:all .4s ease;}
+.bsum-dot{position:absolute;top:50%;width:14px;height:14px;border-radius:50%;background:var(--surface);border:3px solid;box-sizing:border-box;transform:translate(-50%,-50%);transition:left .4s ease;box-shadow:0 1px 3px rgba(0,0,0,.15);}
+.bsum-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:11px;color:var(--text3);}
+.bsum-foot b{color:var(--text2);font-weight:600;font-family:'DM Mono',monospace;}
 .bsum-pace-lbl{color:var(--text3);font-family:'DM Mono',monospace;text-align:right;}
 #extraPoolCard{margin-bottom:1.25rem;}
 .bsum-mark{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--green);border-radius:2px;}
@@ -859,13 +869,14 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
     <div class="card" id="budgetSummaryCard">
       <div class="bsum-top">
         <div>
-          <div class="bsum-label">Vas con respecto a la meta del mes</div>
-          <div class="bsum-amounts"><span id="bsumSpent">—</span> de <span id="bsumBudget">—</span></div>
+          <div class="bsum-label" id="bsumLabel">A este ritmo terminás en</div>
+          <div class="bsum-big"><span id="bsumProj">—</span> <small>de <span id="bsumBudget">—</span></small></div>
+          <div class="bsum-sub" id="bsumSub">—</div>
         </div>
-        <div class="bsum-pct" id="bsumPct">—</div>
+        <span class="bsum-pill" id="bsumPill"><i></i><span id="bsumVerdict">—</span></span>
       </div>
-      <div class="bsum-track"><div class="bsum-fill" id="bsumFill"></div><div class="bsum-pace" id="bsumPace"></div></div>
-      <div class="bsum-foot"><span id="bsumVerdict">—</span><span id="bsumPaceLbl" class="bsum-pace-lbl">—</span></div>
+      <div class="bsum-track"><div class="bsum-fill" id="bsumFill"></div><div class="bsum-proj" id="bsumProjFill"></div><div class="bsum-dot" id="bsumDot"></div></div>
+      <div class="bsum-foot"><span>hoy <b id="bsumPct">—</b></span><span id="bsumPaceLbl">proyección <b id="bsumProjPct">—</b></span><span>meta <b>100%</b></span></div>
     </div>
     <!-- Budget grid + editor (protagonista, arriba) -->
     <div class="section-title">Presupuesto por categoría <span style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none">— clic para detalle</span></div>
@@ -2856,36 +2867,32 @@ function renderBudget(k){
     const today=new Date();
     const curYM=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');
     const dim=new Date(yy,mm,0).getDate();
-    document.getElementById('bsumSpent').textContent=fmtARS(spentTot);
-    document.getElementById('bsumBudget').textContent=fmtARS(budTot);
-    const pctEl=document.getElementById('bsumPct');
-    pctEl.textContent=Math.round(spentPct)+'%';
-    const fill=document.getElementById('bsumFill');
-    fill.style.width=Math.min(100,spentPct)+'%';
-    const paceEl=document.getElementById('bsumPace');
-    const verdictEl=document.getElementById('bsumVerdict');
-    const paceLbl=document.getElementById('bsumPaceLbl');
-    let col,verdict;
-    if(k===curYM){
-      const pacePct=today.getDate()/dim*100;
-      const dev=spentPct-pacePct;
-      // Verde = venís ahorrando (por debajo del ritmo) · Naranja = en lo justo (±5 puntos del ritmo) · Rojo = pasado
-      if(dev>5){col=C_NEG;verdict='🔴 Pasado de ritmo';}
-      else if(dev>=-5){col=C_WARN;verdict='🟠 En lo justo';}
-      else{col=C_POS;verdict='🟢 Ahorrando';}
-      paceEl.style.display='block';
-      paceEl.style.left=Math.min(100,pacePct)+'%';
-      paceLbl.textContent='Ritmo esperado '+Math.round(pacePct)+'% · día '+today.getDate()+'/'+dim;
-    }else{
-      col=spentPct>100?C_NEG:C_POS;
-      verdict=spentPct>100?'🔴 Excedido':'🟢 Dentro del presupuesto';
-      paceEl.style.display='none';
-      paceLbl.textContent=k<curYM?'Mes cerrado':'';
-    }
-    const margin=budTot-spentTot;
-    verdict+=' · '+(margin>=0?'queda '+fmtARS(margin):'excedido '+fmtARS(-margin));
-    fill.style.background=col;pctEl.style.color=col;
-    verdictEl.textContent=verdict;verdictEl.style.color=col;
+    // Proyección a fin de mes: lo gastado hasta hoy, estirado a los días del mes.
+    // Verde = proyección ≤ 95% de la meta (ahorrando) · Naranja = 95–105% (en lo justo) · Rojo = > 105% (pasado)
+    const g=id=>document.getElementById(id);
+    const isCur=k===curYM,day=isCur?today.getDate():dim;
+    const projTot=isCur&&day>0?spentTot/day*dim:spentTot;
+    const projPct=budTot>0?projTot/budTot*100:0;
+    let col,cls,verdict;
+    if(projPct>105){col=C_NEG;cls='no';verdict='Pasado';}
+    else if(projPct>=95){col=C_WARN;cls='mid';verdict='En lo justo';}
+    else{col=C_POS;cls='ok';verdict='Ahorrando';}
+    if(!isCur&&k<curYM)verdict=projPct>100?'Excedido':'Dentro de la meta';
+    g('bsumLabel').textContent=isCur?'A este ritmo terminás en':(k<curYM?'Terminaste en':'Proyección');
+    g('bsumProj').textContent=fmtARS(Math.round(projTot));g('bsumProj').style.color=col;
+    g('bsumBudget').textContent=fmtARS(budTot);
+    const margin=budTot-projTot;
+    g('bsumSub').innerHTML=isCur
+      ?'Gastaste <b>'+fmtARS(spentTot)+'</b> en '+day+(day===1?' día':' días')+' · '+(margin>=0?'te sobrarían <b>'+fmtARS(Math.round(margin))+'</b>':'te pasarías <b>'+fmtARS(Math.round(-margin))+'</b>')
+      :(margin>=0?'Quedaron <b>'+fmtARS(Math.round(margin))+'</b> sin gastar':'Te pasaste <b>'+fmtARS(Math.round(-margin))+'</b>');
+    const pill=g('bsumPill');pill.className='bsum-pill '+cls;g('bsumVerdict').textContent=verdict;
+    const sp=Math.min(100,spentPct),pp=Math.min(100,projPct);
+    const fill=g('bsumFill');fill.style.width=sp+'%';fill.style.background=col;
+    const pf=g('bsumProjFill');pf.style.left=sp+'%';pf.style.width=Math.max(0,pp-sp)+'%';pf.style.background=col;pf.style.display=isCur?'block':'none';
+    const dot=g('bsumDot');dot.style.left=pp+'%';dot.style.borderColor=col;
+    g('bsumPct').textContent=Math.round(spentPct)+'%';
+    g('bsumProjPct').textContent=Math.round(projPct)+'%';
+    g('bsumPaceLbl').style.visibility=isCur?'visible':'hidden';
   }
 
   // Pozo anual de extraordinarios (en paralelo, no toca la meta variable)
