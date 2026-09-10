@@ -2869,10 +2869,10 @@ function renderBudget(k){
     if(k===curYM){
       const pacePct=today.getDate()/dim*100;
       const dev=spentPct-pacePct;
-      if(dev>=10){col=C_NEG;verdict='🔴 Pasado de ritmo';}
-      else if(dev>=5){col=C_WARN;verdict='🟠 Adelantado';}
-      else if(dev<=-5){col=C_WARN;verdict='🟠 Por debajo del ritmo (ahorrando)';}
-      else{col=C_POS;verdict='🟢 En ritmo';}
+      // Verde = venís ahorrando (por debajo del ritmo) · Naranja = en lo justo (±5 puntos del ritmo) · Rojo = pasado
+      if(dev>5){col=C_NEG;verdict='🔴 Pasado de ritmo';}
+      else if(dev>=-5){col=C_WARN;verdict='🟠 En lo justo';}
+      else{col=C_POS;verdict='🟢 Ahorrando';}
       paceEl.style.display='block';
       paceEl.style.left=Math.min(100,pacePct)+'%';
       paceLbl.textContent='Ritmo esperado '+Math.round(pacePct)+'% · día '+today.getDate()+'/'+dim;
