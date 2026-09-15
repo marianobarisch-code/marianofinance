@@ -495,6 +495,24 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .savings-bar-label{display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:6px;}
 .savings-bar-bg{height:8px;background:var(--surface2);border-radius:4px;overflow:hidden;}
 .savings-bar-fill{height:100%;border-radius:4px;transition:width .5s ease;}
+#balEstimate{margin-bottom:1.25rem;}
+.be-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:8px;}
+.be-title{font-size:14px;font-weight:700;}
+.be-sub{font-size:11px;color:var(--text3);}
+.be-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--border);font-size:13px;}
+.be-head+.be-row{border-top:none;}
+.be-row .l{flex:1;min-width:0;}
+.be-row .l small{display:block;font-size:11px;color:var(--text3);}
+.be-row .v{font-family:'DM Mono',monospace;font-variant-numeric:tabular-nums;font-weight:600;text-align:right;white-space:nowrap;}
+.be-row .v.est{color:var(--text2);font-weight:500;}
+.be-row .v.ok{color:var(--green);}
+.be-tot{border-top:2px solid var(--border);font-weight:700;}
+.be-foot{margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--surface2);display:flex;align-items:center;gap:12px;}
+.be-foot .p{font-size:22px;font-weight:700;font-family:'DM Mono',monospace;line-height:1;}
+.be-foot .t{font-size:12px;color:var(--text2);line-height:1.35;}
+.be-foot .t b{color:var(--text);font-family:'DM Mono',monospace;}
+.be-tag{font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--amber);background:var(--amber-bg);border-radius:999px;padding:2px 7px;margin-left:6px;vertical-align:middle;}
+.be-tag.ok{color:var(--green);background:var(--green-bg);}
 
 @media(max-width:700px){
   main{padding:1rem;}
@@ -783,6 +801,8 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
         </div>
       </div>
     </div>
+
+    <div class="card" id="balEstimate" style="display:none"></div>
 
     <div class="card">
       <div class="bal-header-bar">
@@ -2510,6 +2530,55 @@ function getBalMonthKey(k){
   return null;
 }
 
+// ── Estimado del mes en curso ────────────────────────────────
+// El mes actual arranca "vacío" en I&S hasta que se carga el sueldo y llega el resumen de María.
+// Esta card asume: sueldo = el del mes pasado (hasta que Mariano tilde "cobré"), aporte de María = 25% de la
+// casa proyectada a fin de mes (hasta que se registre el pago real), egresos = lo cargado + variables
+// proyectadas por ritmo diario + fijos que faltan al valor del mes pasado. Solo se muestra en el mes actual.
+function renderBalEstimate(k){
+  const el=document.getElementById('balEstimate');if(!el)return;
+  const today=new Date();today.setHours(0,0,0,0);
+  if(balPeriod!=='month'||k!==homeKey(today)){el.style.display='none';el.innerHTML='';return;}
+  const prev=homePrevKey(k,1),day=today.getDate(),dim=new Date(today.getFullYear(),today.getMonth()+1,0).getDate();
+  const U=v=>'US$ '+Math.round(v).toLocaleString('es-AR');
+  // ── ingresos ──
+  const sueldoReal=homeIncomeSum(k,'Sueldo'),sueldoPrev=homeIncomeSum(prev,'Sueldo');
+  const sueldo=sueldoReal||sueldoPrev;
+  const S=casaMioSummary(k);
+  const alqNow=S.alquiler||balGetFor('Alquiler',prev);
+  // fijos que faltan este mes → valor del mes pasado
+  const rowsK=homeFixedRows(k),rowsP=homeFixedRows(prev);
+  let fijosMissing=0,fijosMissingCasa=0;
+  homeFixedExpected(k).forEach(n=>{const r=rowsK.find(x=>x.item_name===n);if(r&&(parseFloat(r.amount)||0)>0)return;const p=rowsP.find(x=>x.item_name===n);if(!p)return;const u=parseFloat(p.amount_usd)||0;fijosMissing+=u;if(!FIXED_MIO_ITEMS.includes(n))fijosMissingCasa+=u;});
+  const varCasaProj=day>0?S.varCasa/day*dim:S.varCasa;
+  const casaProj=alqNow+S.fijosCasa+fijosMissingCasa+varCasaProj;
+  const aporteReal=S.aporte;
+  const aporteEst=Math.max(0,casaProj*MARIA_SHARE-S.mariaOwnUsd);
+  const aporte=aporteReal||aporteEst;
+  const ingresoCargado=balGetFor('Ingreso total',k);
+  const otros=Math.max(0,ingresoCargado-sueldoReal-aporteReal);
+  const ingresoEst=sueldo+aporte+otros;
+  // ── egresos ──
+  const egresosNow=balGetFor('Egresos',k),varsNow=balGetFor('Variables',k);
+  const varsProj=day>0?varsNow/day*dim:varsNow;
+  const egresosProj=egresosNow-varsNow+varsProj+fijosMissing+(S.alquiler?0:alqNow);
+  const ahorro=ingresoEst-egresosProj,pct=ingresoEst>0?Math.round(ahorro/ingresoEst*100):0;
+  const col=pct>=30?'var(--green)':pct>=0?'var(--amber)':'var(--red)';
+  const rowHtml=(l,sub,v,cls,extra)=>'<div class="be-row"><div class="l">'+l+(sub?'<small>'+sub+'</small>':'')+'</div>'+(extra||'')+'<div class="v '+(cls||'')+'">'+v+'</div></div>';
+  let html='<div class="be-head"><div class="be-title">Estimado de '+mnName(k)+'</div><div class="be-sub">día '+day+' de '+dim+' · lo real reemplaza lo estimado a medida que lo cargás</div></div>';
+  html+=sueldoReal
+    ?rowHtml('Sueldo<span class="be-tag ok">cobrado</span>','',U(sueldoReal),'ok')
+    :rowHtml('Sueldo<span class="be-tag">estimado</span>','igual que '+mnName(prev).toLowerCase(),U(sueldo),'est',sueldoPrev>0?'<button class="hc-go one" id="beSueldoOk">✓ Ya lo cobré</button>':'');
+  html+=aporteReal
+    ?rowHtml('Aporte de María<span class="be-tag ok">registrado</span>','',U(aporteReal),'ok')
+    :rowHtml('Aporte de María<span class="be-tag">estimado</span>','25% de la casa proyectada ('+U(casaProj)+')',U(aporteEst),'est');
+  if(otros>0)html+=rowHtml('Otros ingresos ya cargados','pasivos, referidos, comisiones',U(otros),'ok');
+  html+=rowHtml('<b>Ingreso estimado</b>','','<b>'+U(ingresoEst)+'</b>','');
+  html+=rowHtml('Egresos proyectados a fin de mes','hasta hoy '+U(egresosNow)+' · variables al ritmo actual'+(fijosMissing?' · fijos que faltan al valor de '+mnName(prev).toLowerCase():''),U(egresosProj),'est');
+  html+='<div class="be-foot"><div class="p" style="color:'+col+'">'+pct+'%</div><div class="t">ahorro estimado del mes<br><b>'+U(ahorro)+'</b> si el mes termina como viene</div></div>';
+  el.innerHTML=html;el.style.display='block';
+  const b=document.getElementById('beSueldoOk');if(b)b.onclick=()=>homeRun(b,()=>homeQuickIncome(k,'Sueldo',null,sueldoPrev));
+}
 function renderBalance(k){
   const rm=balData.rowMap||{};
   const mk2=getBalMonthKey(k);
@@ -2568,6 +2637,7 @@ function renderBalance(k){
   const barPct=Math.max(0,Math.min(100,dispSavPct));
   barFill.style.width=barPct+'%';
   barFill.style.background=dispSavPct>=30?C_POS:dispSavPct>=0?C_WARN:C_NEG;
+  try{renderBalEstimate(k);}catch(e){console.warn('balEstimate:',e);}
 
   // Charts — use filtered months
   const fm=getFilteredMonths();
