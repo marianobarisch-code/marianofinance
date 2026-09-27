@@ -397,7 +397,7 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .nw-bd-sug:hover{background:var(--primary);color:#fff;}
 .nw-bd-hint{font-size:10px;color:var(--text3);text-align:right;margin-top:2px;white-space:nowrap;font-family:'DM Sans',sans-serif;}
 .nw-bd-hint.warn{color:var(--amber);}
-.nw-bd-section .nw-bd-keep{float:right;border:none;background:transparent;color:var(--primary);font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;text-transform:none;letter-spacing:0;padding:0;}
+.nw-bd-section .nw-bd-manual{float:right;font-size:10px;font-weight:500;color:var(--text3);text-transform:none;letter-spacing:0;font-style:italic;}
 .nw-bd-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;}
 .nw-bd-foot .st{font-size:12px;font-weight:500;}
 .nw-bd-foot label{font-size:12px;color:var(--text2);display:flex;align-items:center;gap:6px;cursor:pointer;}
@@ -3772,14 +3772,16 @@ function renderNetWorth(k){
   };
   const fmtIn=v=>v?String(Math.round(v*100)/100):'';
   // sugerencia para el mes elegido: Provisión Alquiler suma 1.800 por mes hasta 10.800 (semestre, se paga fin de abril y fin de octubre); el resto repite el mes anterior
-  const suggestFor=(item,pv)=>{
+  const NW_KEEP_GROUPS=['inmuebles','participaciones','pasivos']; // Activos líquidos e Inversiones cambian todos los meses: se cargan a mano, sin sugerencia
+  const suggestFor=(item,pv,gkey)=>{
+    if(!NW_KEEP_GROUPS.includes(gkey))return null;
     if(item==='Provisión Alquiler'){
       const step=1800,max=10800;
       if(pv>=max)return{val:step,lbl:'reiniciar',hint:'pagaste el semestre → arranca en 1.800',warn:false};
       const nv=Math.min(max,(pv||0)+step),n=Math.round(nv/step);
       return{val:nv,lbl:'+1.800',hint:nv>=max?'cuota 6 de 6 · este mes pagás el semestre (10.800)':'cuota '+n+' de 6',warn:nv>=max};
     }
-    if(pv>0)return{val:pv,lbl:'↻ mantener',hint:'igual que '+prevLbl,warn:false};
+    if(pv>0)return{val:pv,lbl:'↻ igual que '+prevLbl,hint:'mantener el valor de '+prevLbl,warn:false};
     return null;
   };
   const sub=document.getElementById('nwBdSub');
@@ -3792,8 +3794,7 @@ function renderNetWorth(k){
   }).join('');
   let bd=`<table class="nw-bd-table"><thead><tr><th>Ítem</th>${bdLbls.map((l,i)=>`<th class="${editable&&i===bdLbls.length-1?'ed':''}">${l}${editable&&i===bdLbls.length-1?' ✎':''}</th>`).join('')}</tr></thead><tbody>`;
   NW_GROUPS.forEach(g=>{
-    const keepBtn=editable&&prevCol?`<button class="nw-bd-keep" data-keep="${g.key}" title="Copiar ${prevLbl} en todos los ítems de ${g.title}">↻ mantener ${prevLbl}</button>`:'';
-    bd+=`<tr class="nw-bd-section"><td colspan="${bdLbls.length+1}">${g.title}${keepBtn}</td></tr>`;
+    bd+=`<tr class="nw-bd-section"><td colspan="${bdLbls.length+1}">${g.title}${editable&&!NW_KEEP_GROUPS.includes(g.key)?'<span class="nw-bd-manual">se carga a mano cada mes</span>':''}</td></tr>`;
     g.items.forEach(lbl=>{
       const vals=bdCols.map(c=>get(lbl,c));
       const inactive=nwIsItemInactive(lbl);
@@ -3802,7 +3803,7 @@ function renderNetWorth(k){
       if(!editable){bd+=`<tr><td>${lbl}</td>${cellsFor(vals)}</tr>`;return;}
       const prevVals=vals.slice(0,-1),cur=vals[vals.length-1];
       const pv=prevCol?get(lbl,prevCol):0;
-      const sug=loadedSet.has(lbl)?null:suggestFor(lbl,pv);
+      const sug=loadedSet.has(lbl)?null:suggestFor(lbl,pv,g.key);
       const inp=`<div class="nw-bd-edit">${sug?`<button class="nw-bd-sug" data-sug="${sug.val}" title="${sug.hint}">${sug.lbl}</button>`:''}<input type="number" step="0.01" min="0" class="${sug?'sug':''}" data-item="${lbl.replace(/"/g,'&quot;')}" data-cat="${g.key}" value="${loadedSet.has(lbl)?fmtIn(cur):''}" placeholder="${sug?fmtIn(sug.val):'—'}"></div>${sug?`<div class="nw-bd-hint ${sug.warn?'warn':''}">${sug.hint}</div>`:''}`;
       bd+=`<tr><td>${lbl}${inactive?'<span class="nw-item-badge">inactivo</span>':''}</td>${cellsFor(prevVals)}<td class="ed">${inp}</td></tr>`;
     });
@@ -3820,10 +3821,6 @@ function renderNetWorth(k){
     const sv=document.getElementById('nwBdSave');if(sv)sv.onclick=()=>nwBdSave(k);
   }
   bdEl.querySelectorAll('.nw-bd-sug').forEach(b=>b.onclick=()=>{const i=b.parentElement.querySelector('input');i.value=b.dataset.sug;i.classList.remove('sug');b.remove();});
-  bdEl.querySelectorAll('.nw-bd-keep').forEach(b=>b.onclick=()=>{
-    const g=NW_GROUPS.find(x=>x.key===b.dataset.keep);if(!g||!prevCol)return;
-    g.items.forEach(it=>{const i=bdEl.querySelector('input[data-item="'+it.replace(/"/g,'&quot;')+'"]');if(!i||i.value!=='')return;const sg=suggestFor(it,get(it,prevCol));if(sg){i.value=fmtIn(sg.val);i.classList.remove('sug');const sb2=i.parentElement.querySelector('.nw-bd-sug');if(sb2)sb2.remove();}});
-  });
   bdEl.querySelectorAll('.nw-bd-edit input').forEach(i=>i.addEventListener('input',()=>{i.classList.remove('sug');}));
 }
 let nwShowInactive=false;
