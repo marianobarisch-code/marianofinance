@@ -385,6 +385,23 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .nw-bd-table td.nw-up{color:var(--green);}
 .nw-bd-table td.nw-down{color:var(--red);}
 .nw-bd-table td.nw-flat{color:var(--amber);}
+.nw-bd-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:8px;}
+.nw-bd-sub{font-size:12px;color:var(--text3);}
+.nw-bd-table th.ed{color:var(--primary);}
+.nw-bd-table td.ed{padding:4px 6px;}
+.nw-bd-edit{display:flex;align-items:center;justify-content:flex-end;gap:4px;}
+.nw-bd-edit input{width:104px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-family:'DM Mono',monospace;font-size:12px;text-align:right;background:var(--surface);color:var(--text);}
+.nw-bd-edit input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 2px rgba(94,114,235,.15);}
+.nw-bd-edit input.sug{border-style:dashed;}
+.nw-bd-sug{border:none;background:var(--primary-bg);color:var(--primary);font-size:11px;font-weight:600;border-radius:6px;padding:5px 7px;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;}
+.nw-bd-sug:hover{background:var(--primary);color:#fff;}
+.nw-bd-hint{font-size:10px;color:var(--text3);text-align:right;margin-top:2px;white-space:nowrap;font-family:'DM Sans',sans-serif;}
+.nw-bd-hint.warn{color:var(--amber);}
+.nw-bd-section .nw-bd-keep{float:right;border:none;background:transparent;color:var(--primary);font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;text-transform:none;letter-spacing:0;padding:0;}
+.nw-bd-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;}
+.nw-bd-foot .st{font-size:12px;font-weight:500;}
+.nw-bd-foot label{font-size:12px;color:var(--text2);display:flex;align-items:center;gap:6px;cursor:pointer;}
+.nw-bd-foot .r{display:flex;align-items:center;gap:12px;margin-left:auto;}
 .income-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;gap:10px;}
 .income-row:last-child{border-bottom:none;}
 .income-row-main{display:flex;gap:10px;align-items:baseline;min-width:0;}
@@ -1002,43 +1019,14 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
       <div style="position:relative;width:100%;height:240px;"><canvas id="nwChart"></canvas></div>
     </div>
 
-    <!-- NW EDITOR -->
-    <div class="nw-editor-card">
-      <div class="nw-editor-header">
-        <div class="nw-editor-header-left">
-          <div class="nw-editor-title">Editar saldos del mes</div>
-          <div class="nw-editor-alert" id="nwEditorAlert" style="display:none"></div>
-        </div>
-        <button class="nw-editor-toggle" id="nwEditorToggle" aria-expanded="false">Mostrar ▾</button>
-      </div>
-      <div class="nw-editor-body" id="nwEditorBody" style="display:none;">
-        <div class="nw-editor-controls">
-          <div class="nw-edit-field">
-            <label class="form-label">Mes</label>
-            <select class="form-input" id="nwEditMonth"></select>
-          </div>
-          <div class="nw-edit-field">
-            <label class="form-label">Año</label>
-            <select class="form-input" id="nwEditYear"></select>
-          </div>
-        </div>
-        <div class="nw-editor-readonly-banner" id="nwEditorReadonlyBanner" style="display:none"></div>
-        <div id="nwEditorTable"></div>
-        <div class="nw-editor-footer">
-          <label class="nw-editor-show-inactive">
-            <input type="checkbox" id="nwEditorShowInactive"> Mostrar items inactivos (en cero los últimos 4 meses)
-          </label>
-          <div class="nw-editor-actions">
-            <span class="nw-editor-status" id="nwEditorStatus"></span>
-            <button class="btn-primary" id="nwEditorSubmit">Guardar saldos</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
+    <!-- DESGLOSE + EDICIÓN (una sola card: el mes elegido arriba se edita acá) -->
     <div class="card" id="nwBreakdownCard">
-      <div class="card-title">Desglose por ítem (USD)</div>
+      <div class="nw-bd-head">
+        <div><div class="card-title" style="margin-bottom:2px">Desglose por ítem (USD)</div><div class="nw-bd-sub" id="nwBdSub"></div></div>
+        <div class="nw-editor-alert" id="nwEditorAlert" style="display:none"></div>
+      </div>
       <div id="nwBreakdown"></div>
+      <div class="nw-bd-foot" id="nwBdFoot"></div>
     </div>
   </div>
 
@@ -3768,44 +3756,99 @@ function renderNetWorth(k){
     }
   });
 
-  // ── Desglose: lista agrupada, mes actual + 2 anteriores ───────
+  // ── Desglose: mes elegido + 2 anteriores; la columna del mes elegido se edita acá mismo ──
   const bdIdx=[curIdx-2,curIdx-1,curIdx].filter(i=>i>=0);
   const bdMonths=bdIdx.map(i=>months[i]);
   const bdCols=bdMonths.map(getNWMonthKey);
   const bdLbls=bdMonths.map(mnShort);
-  const bdGroups=[
-    {title:'Activos líquidos',rows:['Wise','Citi','Galicia','Littio Card','Cash - USD'],totalKey:'Liquido'},
-    {title:'Inversiones',rows:['Binance','eToro','StoneX'],totalKey:'Crypto, acciones y bonos'},
-    {title:'Real Estate',rows:['Inmueble - Depto Libertador','Grupo Zeta'],totalKey:'Inmuebles - Total'},
-    {title:'Participaciones y préstamos',rows:['Littio (Equity)','GreenLat','Littio (Pots)','Préstamo QUEM (Walter y Mati)'],totalKey:'Participación/Préstamos'},
-    {title:'Pasivos',rows:['Provisión GreenLat','Provisión Alquiler'],totalKey:'Pasivos'}
-  ];
+  const editable=(k+'-01')>=NW_CUTOFF;
+  const prevCol=bdCols.length>1?bdCols[bdCols.length-2]:null,prevLbl=bdLbls.length>1?bdLbls[bdLbls.length-2]:'';
+  const curRows=homeNwRows(k);
+  const loadedSet=new Set(curRows.map(r=>r.item_name));
   const moveCls=(cur,prev)=>{
     if(prev===null||prev===undefined||!prev)return'';
     const p=(cur-prev)/Math.abs(prev)*100;
     return p>1?'nw-up':p<-1?'nw-down':'nw-flat';
   };
+  const fmtIn=v=>v?String(Math.round(v*100)/100):'';
+  // sugerencia para el mes elegido: Provisión Alquiler suma 1.800 por mes hasta 10.800 (semestre, se paga fin de abril y fin de octubre); el resto repite el mes anterior
+  const suggestFor=(item,pv)=>{
+    if(item==='Provisión Alquiler'){
+      const step=1800,max=10800;
+      if(pv>=max)return{val:step,lbl:'reiniciar',hint:'pagaste el semestre → arranca en 1.800',warn:false};
+      const nv=Math.min(max,(pv||0)+step),n=Math.round(nv/step);
+      return{val:nv,lbl:'+1.800',hint:nv>=max?'cuota 6 de 6 · este mes pagás el semestre (10.800)':'cuota '+n+' de 6',warn:nv>=max};
+    }
+    if(pv>0)return{val:pv,lbl:'↻ mantener',hint:'igual que '+prevLbl,warn:false};
+    return null;
+  };
+  const sub=document.getElementById('nwBdSub');
+  if(sub)sub.textContent=editable?'Editás '+mnName(k)+' en la última columna · vacío = no se toca · Guardar al final':mnName(k)+' es histórico (planilla): solo lectura';
+  const alertEl=document.getElementById('nwEditorAlert');
+  if(alertEl){const missing=nwMissingMonths();if(missing.length){alertEl.style.display='block';alertEl.textContent='⚠ Falta cargar: '+missing.map(m=>m.label).join(', ');}else alertEl.style.display='none';}
   const cellsFor=vals=>vals.map((v,i)=>{
     const cls=i>0?moveCls(v,vals[i-1]):'';
     return`<td class="${cls}">${v?fmtUSD(v):'—'}</td>`;
   }).join('');
-  let bd=`<table class="nw-bd-table"><thead><tr><th>Ítem</th>${bdLbls.map(l=>`<th>${l}</th>`).join('')}</tr></thead><tbody>`;
-  bdGroups.forEach(g=>{
-    bd+=`<tr class="nw-bd-section"><td>${g.title}</td>${bdLbls.map(()=>'<td></td>').join('')}</tr>`;
-    g.rows.forEach(lbl=>{
+  let bd=`<table class="nw-bd-table"><thead><tr><th>Ítem</th>${bdLbls.map((l,i)=>`<th class="${editable&&i===bdLbls.length-1?'ed':''}">${l}${editable&&i===bdLbls.length-1?' ✎':''}</th>`).join('')}</tr></thead><tbody>`;
+  NW_GROUPS.forEach(g=>{
+    const keepBtn=editable&&prevCol?`<button class="nw-bd-keep" data-keep="${g.key}" title="Copiar ${prevLbl} en todos los ítems de ${g.title}">↻ mantener ${prevLbl}</button>`:'';
+    bd+=`<tr class="nw-bd-section"><td colspan="${bdLbls.length+1}">${g.title}${keepBtn}</td></tr>`;
+    g.items.forEach(lbl=>{
       const vals=bdCols.map(c=>get(lbl,c));
-      if(vals.every(v=>!v))return;
-      bd+=`<tr><td>${lbl}</td>${cellsFor(vals)}</tr>`;
+      const inactive=nwIsItemInactive(lbl);
+      if(vals.every(v=>!v)&&!(editable&&nwShowInactive))return;
+      if(inactive&&!nwShowInactive&&!vals[vals.length-1])return;
+      if(!editable){bd+=`<tr><td>${lbl}</td>${cellsFor(vals)}</tr>`;return;}
+      const prevVals=vals.slice(0,-1),cur=vals[vals.length-1];
+      const pv=prevCol?get(lbl,prevCol):0;
+      const sug=loadedSet.has(lbl)?null:suggestFor(lbl,pv);
+      const inp=`<div class="nw-bd-edit">${sug?`<button class="nw-bd-sug" data-sug="${sug.val}" title="${sug.hint}">${sug.lbl}</button>`:''}<input type="number" step="0.01" min="0" class="${sug?'sug':''}" data-item="${lbl.replace(/"/g,'&quot;')}" data-cat="${g.key}" value="${loadedSet.has(lbl)?fmtIn(cur):''}" placeholder="${sug?fmtIn(sug.val):'—'}"></div>${sug?`<div class="nw-bd-hint ${sug.warn?'warn':''}">${sug.hint}</div>`:''}`;
+      bd+=`<tr><td>${lbl}${inactive?'<span class="nw-item-badge">inactivo</span>':''}</td>${cellsFor(prevVals)}<td class="ed">${inp}</td></tr>`;
     });
-    const totVals=bdCols.map(c=>get(g.totalKey,c)||g.rows.reduce((s,l)=>s+get(l,c),0));
+    const totVals=bdCols.map(c=>get(g.sheetTotalKey,c)||g.items.reduce((s,l)=>s+get(l,c),0));
     bd+=`<tr class="nw-bd-total"><td>Total ${g.title}</td>${cellsFor(totVals)}</tr>`;
   });
   const grandVals=bdCols.map(c=>get('Total Patrimonio',c));
   bd+=`<tr class="nw-bd-total nw-bd-grand"><td>Total Patrimonio</td>${cellsFor(grandVals)}</tr>`;
   bd+='</tbody></table>';
-  document.getElementById('nwBreakdown').innerHTML=bd;
+  const bdEl=document.getElementById('nwBreakdown');bdEl.innerHTML=bd;
+  const foot=document.getElementById('nwBdFoot');
+  if(foot){
+    foot.innerHTML=editable?`<label><input type="checkbox" id="nwBdInactive" ${nwShowInactive?'checked':''}> Mostrar ítems inactivos</label><div class="r"><span class="st" id="nwBdStatus"></span><button class="btn-primary" id="nwBdSave">Guardar ${mnName(k)}</button></div>`:'';
+    const ci=document.getElementById('nwBdInactive');if(ci)ci.onchange=()=>{nwShowInactive=ci.checked;renderNetWorth(k);};
+    const sv=document.getElementById('nwBdSave');if(sv)sv.onclick=()=>nwBdSave(k);
+  }
+  bdEl.querySelectorAll('.nw-bd-sug').forEach(b=>b.onclick=()=>{const i=b.parentElement.querySelector('input');i.value=b.dataset.sug;i.classList.remove('sug');b.remove();});
+  bdEl.querySelectorAll('.nw-bd-keep').forEach(b=>b.onclick=()=>{
+    const g=NW_GROUPS.find(x=>x.key===b.dataset.keep);if(!g||!prevCol)return;
+    g.items.forEach(it=>{const i=bdEl.querySelector('input[data-item="'+it.replace(/"/g,'&quot;')+'"]');if(!i||i.value!=='')return;const sg=suggestFor(it,get(it,prevCol));if(sg){i.value=fmtIn(sg.val);i.classList.remove('sug');const sb2=i.parentElement.querySelector('.nw-bd-sug');if(sb2)sb2.remove();}});
+  });
+  bdEl.querySelectorAll('.nw-bd-edit input').forEach(i=>i.addEventListener('input',()=>{i.classList.remove('sug');}));
+}
+let nwShowInactive=false;
+async function nwBdSave(k){
+  const iso=k+'-01';
+  if(iso<NW_CUTOFF){alert('Ese mes es histórico (planilla), no se edita acá.');return;}
+  const rows=[];
+  for(const inp of document.querySelectorAll('#nwBreakdown input[data-item]')){
+    const raw=inp.value.trim();if(raw==='')continue;           // vacío = no se toca
+    const amount=parseFloat(raw);
+    if(!isFinite(amount)||amount<0){alert('Valor inválido para "'+inp.dataset.item+'". Tiene que ser un número ≥ 0.');return;}
+    rows.push({month_year:iso,item_name:inp.dataset.item,category:inp.dataset.cat,amount_usd:amount});
+  }
+  if(!rows.length){alert('No hay nada para guardar: completá al menos un ítem o usá "mantener".');return;}
+  const btn=document.getElementById('nwBdSave'),st=document.getElementById('nwBdStatus');
+  btn.disabled=true;btn.textContent='Guardando…';st.textContent='';
+  try{
+    const{error}=await sb.from('net_worth_balances').upsert(rows,{onConflict:'month_year,item_name'});
+    if(error)throw new Error(error.message);
+    setStatus('✓ '+rows.length+' saldos guardados','ok');
+    await loadData();
+  }catch(err){st.textContent='✗ '+err.message;st.style.color='var(--red)';btn.disabled=false;btn.textContent='Guardar '+mnName(k);}
 }
 
+// ── NW helpers ────────────────────────────────────────────────
 // ── NW EDITOR ─────────────────────────────────────────────────
 function nwIsItemInactive(itemName){
   const today=new Date();
@@ -3834,136 +3877,6 @@ function nwMissingMonths(){
   }
   return result;
 }
-function nwEditorPopulateDropdowns(){
-  const monthSel=document.getElementById('nwEditMonth');
-  const yearSel=document.getElementById('nwEditYear');
-  let firstPopulate=false;
-  if(monthSel.options.length===0){
-    NW_MONTHS_ES.forEach((name,i)=>monthSel.appendChild(new Option(name,String(i+1))));
-    firstPopulate=true;
-  }
-  // Years from data + cutoff + current
-  const years=new Set([2026,new Date().getFullYear()]);
-  Object.values(nwData.monthCols||{}).forEach(lbl=>{
-    const m=lbl.match(/(\d{2})$/);
-    if(m)years.add(2000+parseInt(m[1]));
-  });
-  const sorted=[...years].sort();
-  const existing=[...yearSel.options].map(o=>parseInt(o.value));
-  const same=sorted.length===existing.length&&sorted.every((y,i)=>y===existing[i]);
-  if(!same){
-    const prev=yearSel.value;
-    yearSel.innerHTML='';
-    sorted.forEach(y=>yearSel.appendChild(new Option(String(y),String(y))));
-    if(prev&&sorted.includes(parseInt(prev)))yearSel.value=prev;
-  }
-  if(firstPopulate||!monthSel.value){
-    const today=new Date();
-    monthSel.value=String(today.getMonth()+1);
-    yearSel.value=String(today.getFullYear());
-  }
-}
-function nwEditorRender(){
-  const monthSel=document.getElementById('nwEditMonth');
-  const yearSel=document.getElementById('nwEditYear');
-  if(!monthSel.value||!yearSel.value)return;
-  const year=parseInt(yearSel.value);
-  const month=parseInt(monthSel.value);
-  const lbl=nwMonthLabel(year,month);
-  const iso=nwMonthIso(year,month);
-  const isPostCutoff=iso>=NW_CUTOFF;
-
-  // Read-only banner
-  const banner=document.getElementById('nwEditorReadonlyBanner');
-  if(isPostCutoff){
-    banner.style.display='none';
-  }else{
-    banner.style.display='block';
-    banner.textContent='Modo solo lectura — '+lbl+' es histórico (Google Sheets). Editá desde la planilla.';
-  }
-
-  // Missing-month alert
-  const alertEl=document.getElementById('nwEditorAlert');
-  const missing=nwMissingMonths();
-  if(missing.length){
-    alertEl.style.display='block';
-    alertEl.textContent='⚠ Falta cargar: '+missing.map(m=>m.label).join(', ');
-  }else{
-    alertEl.style.display='none';
-  }
-
-  // Table
-  const showInactive=document.getElementById('nwEditorShowInactive').checked;
-  const tableEl=document.getElementById('nwEditorTable');
-  const html=NW_GROUPS.map(g=>{
-    const rowsHtml=g.items.map(item=>{
-      const inactive=nwIsItemInactive(item);
-      if(inactive&&!showInactive)return '';
-      const v=(nwData.rowMap[item]||{})[lbl];
-      const valStr=(v!==undefined&&v!==null&&!isNaN(v))?(Math.round(v*100)/100):'';
-      const dis=isPostCutoff?'':'disabled';
-      const badge=inactive?'<span class="nw-item-badge">inactivo</span>':'';
-      return '<div class="nw-editor-row"><span class="nw-item-name">'+item+badge+'</span><input type="number" id="nw-input-'+nwSlug(item)+'" data-item="'+item.replace(/"/g,'&quot;')+'" data-cat="'+g.key+'" value="'+valStr+'" step="0.01" placeholder="—" '+dis+'></div>';
-    }).filter(Boolean).join('');
-    if(!rowsHtml)return '';
-    return '<div class="nw-editor-section"><div class="nw-editor-section-title" style="color:'+g.color+'">'+g.title+'</div>'+rowsHtml+'</div>';
-  }).filter(Boolean).join('');
-  tableEl.innerHTML=html;
-
-  // Submit button state
-  const submitBtn=document.getElementById('nwEditorSubmit');
-  submitBtn.disabled=!isPostCutoff;
-  submitBtn.textContent=isPostCutoff?'Guardar saldos':'Solo lectura';
-}
-async function nwEditorSubmit(){
-  const monthSel=document.getElementById('nwEditMonth');
-  const yearSel=document.getElementById('nwEditYear');
-  const year=parseInt(yearSel.value);
-  const month=parseInt(monthSel.value);
-  const iso=nwMonthIso(year,month);
-  if(iso<NW_CUTOFF){alert('No se pueden editar meses pre-cutoff (anteriores a Mayo 26).');return;}
-
-  const inputs=document.querySelectorAll('#nwEditorTable input[data-item]');
-  const rows=[];
-  for(const inp of inputs){
-    const item=inp.dataset.item;
-    const cat=inp.dataset.cat;
-    const raw=inp.value.trim();
-    const amount=raw===''?0:parseFloat(raw);
-    if(!isFinite(amount)||amount<0){
-      alert('Valor inválido para "'+item+'". Tiene que ser un número >= 0.');
-      return;
-    }
-    rows.push({month_year:iso,item_name:item,category:cat,amount_usd:amount});
-  }
-
-  const submitBtn=document.getElementById('nwEditorSubmit');
-  const statusEl=document.getElementById('nwEditorStatus');
-  submitBtn.disabled=true;
-  submitBtn.textContent='Guardando...';
-  statusEl.textContent='';
-  try{
-    const{error}=await sb.from('net_worth_balances').upsert(rows,{onConflict:'month_year,item_name'});
-    if(error)throw new Error(error.message);
-    statusEl.textContent='✓ Guardado';
-    statusEl.style.color='var(--green)';
-    await loadData();
-    setTimeout(()=>{statusEl.textContent='';},3000);
-  }catch(err){
-    statusEl.textContent='✗ '+err.message;
-    statusEl.style.color='var(--red)';
-    submitBtn.disabled=false;
-    submitBtn.textContent='Guardar saldos';
-  }
-}
-function nwEditorToggle(){
-  const body=document.getElementById('nwEditorBody');
-  const btn=document.getElementById('nwEditorToggle');
-  const open=body.style.display!=='none';
-  body.style.display=open?'none':'block';
-  btn.textContent=open?'Mostrar ▾':'Ocultar ▴';
-  btn.setAttribute('aria-expanded',String(!open));
-}
 function setNwChartRange(r){
   nwChartRange=r;
   document.querySelectorAll('#nwRangeBtns .nw-range-btn').forEach(b=>{
@@ -3971,21 +3884,12 @@ function setNwChartRange(r){
   });
   if(months.length)renderNetWorth(months[curIdx]);
 }
-function nwEditorInit(){
-  if(!document.getElementById('nwEditMonth'))return;
-  nwEditorPopulateDropdowns();
-  if(!nwEditorInit._bound){
-    document.getElementById('nwEditMonth').addEventListener('change',nwEditorRender);
-    document.getElementById('nwEditYear').addEventListener('change',nwEditorRender);
-    document.getElementById('nwEditorShowInactive').addEventListener('change',nwEditorRender);
-    document.getElementById('nwEditorSubmit').addEventListener('click',nwEditorSubmit);
-    document.getElementById('nwEditorToggle').addEventListener('click',nwEditorToggle);
-    document.querySelectorAll('#nwRangeBtns .nw-range-btn').forEach(b=>{
-      b.addEventListener('click',()=>setNwChartRange(b.dataset.range));
-    });
-    nwEditorInit._bound=true;
-  }
-  nwEditorRender();
+function nwEditorInit(){ // la edición vive en el desglose (renderNetWorth); acá solo quedan los botones de rango del gráfico
+  if(nwEditorInit._bound)return;
+  document.querySelectorAll('#nwRangeBtns .nw-range-btn').forEach(b=>{
+    b.addEventListener('click',()=>setNwChartRange(b.dataset.range));
+  });
+  nwEditorInit._bound=true;
 }
 
 // ── INSIGHTS TAB ──────────────────────────────────────────────
