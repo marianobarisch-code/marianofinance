@@ -906,14 +906,14 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
     <div class="card" id="budgetSummaryCard">
       <div class="bsum-top">
         <div>
-          <div class="bsum-label" id="bsumLabel">A este ritmo terminás en</div>
+          <div class="bsum-label" id="bsumLabel">Llevás gastado</div>
           <div class="bsum-big"><span id="bsumProj">—</span> <small>de <span id="bsumBudget">—</span></small></div>
           <div class="bsum-sub" id="bsumSub">—</div>
         </div>
         <span class="bsum-pill" id="bsumPill"><i></i><span id="bsumVerdict">—</span></span>
       </div>
-      <div class="bsum-track"><div class="bsum-fill" id="bsumFill"></div><div class="bsum-proj" id="bsumProjFill"></div><div class="bsum-dot" id="bsumDot"></div></div>
-      <div class="bsum-foot"><span>hoy <b id="bsumPct">—</b></span><span id="bsumPaceLbl">proyección <b id="bsumProjPct">—</b></span><span>meta <b>100%</b></span></div>
+      <div class="bsum-track"><div class="bsum-fill" id="bsumFill"></div></div>
+      <div class="bsum-foot"><span><b id="bsumPct">—</b> del tope usado</span><span>tope <b>100%</b></span></div>
     </div>
     <!-- Budget grid + editor (protagonista, arriba) -->
     <div class="section-title">Presupuesto por categoría <span style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none">— clic para detalle</span></div>
@@ -2422,7 +2422,7 @@ function homeLiveHtml(today){
   // último gasto cargado
   let last=null;(varRows||[]).forEach(r=>{const d=homeVarDate(r);if(!isNaN(d)&&(!last||d>last))last=d;});
   if(last){const l=new Date(last);l.setHours(0,0,0,0);const dd=Math.round((today-l)/86400000);
-    lines.push({st:dd<=3?'ok':'mid',txt:'Último gasto cargado',det:dd<=0?'hoy':dd===1?'ayer':'hace '+dd+' días',cls:dd<=3?'':'mid'});}
+    lines.push({st:dd<=7?'ok':'mid',txt:'Último gasto cargado',det:dd<=0?'hoy':dd===1?'ayer':'hace '+dd+' días',cls:dd<=7?'':'mid'});}
   const ic={ok:'✓',no:'!',mid:'!',off:'·'};
   const dim=new Date(today.getFullYear(),today.getMonth()+1,0).getDate();
   const urgent=lines.filter(l=>l.st==='no'||l.st==='mid').length;
@@ -2522,7 +2522,7 @@ function getBalMonthKey(k){
 // El mes actual arranca "vacío" en I&S hasta que se carga el sueldo y llega el resumen de María.
 // Esta card asume: sueldo = el del mes pasado (hasta que Mariano tilde "cobré"), aporte de María = 25% de la
 // casa proyectada a fin de mes (hasta que se registre el pago real), egresos = lo cargado + variables
-// proyectadas por ritmo diario + fijos que faltan al valor del mes pasado. Solo se muestra en el mes actual.
+// de un mes normal (promedio 3 meses) + fijos que faltan al valor del mes pasado. Solo se muestra en el mes actual.
 function renderBalEstimate(k){
   const el=document.getElementById('balEstimate');if(!el)return;
   const today=new Date();today.setHours(0,0,0,0);
@@ -2538,7 +2538,11 @@ function renderBalEstimate(k){
   const rowsK=homeFixedRows(k),rowsP=homeFixedRows(prev);
   let fijosMissing=0,fijosMissingCasa=0;
   homeFixedExpected(k).forEach(n=>{const r=rowsK.find(x=>x.item_name===n);if(r&&(parseFloat(r.amount)||0)>0)return;const p=rowsP.find(x=>x.item_name===n);if(!p)return;const u=parseFloat(p.amount_usd)||0;fijosMissing+=u;if(!FIXED_MIO_ITEMS.includes(n))fijosMissingCasa+=u;});
-  const varCasaProj=day>0?S.varCasa/day*dim:S.varCasa;
+  // Variables del mes: sin ritmo diario (la tarjeta entra por semana). Se asume un mes normal = promedio de los últimos 3 meses cerrados, o lo ya cargado si es más.
+  const prev3=[1,2,3].map(n=>homePrevKey(k,n));
+  const avg=arr=>{const v=arr.filter(x=>x>0);return v.length?v.reduce((a,b)=>a+b,0)/v.length:0;};
+  const varCasaAvg=avg(prev3.map(p=>{try{return casaMioSummary(p).varCasa;}catch(e){return 0;}}));
+  const varCasaProj=Math.max(S.varCasa,varCasaAvg);
   const casaProj=alqNow+S.fijosCasa+fijosMissingCasa+varCasaProj;
   const aporteReal=S.aporte;
   const aporteEst=Math.max(0,casaProj*MARIA_SHARE-S.mariaOwnUsd);
@@ -2548,7 +2552,7 @@ function renderBalEstimate(k){
   const ingresoEst=sueldo+aporte+otros;
   // ── egresos ──
   const egresosNow=balGetFor('Egresos',k),varsNow=balGetFor('Variables',k);
-  const varsProj=day>0?varsNow/day*dim:varsNow;
+  const varsProj=Math.max(varsNow,avg(prev3.map(p=>balGetFor('Variables',p))));
   const egresosProj=egresosNow-varsNow+varsProj+fijosMissing+(S.alquiler?0:alqNow);
   const ahorro=ingresoEst-egresosProj,pct=ingresoEst>0?Math.round(ahorro/ingresoEst*100):0;
   const col=pct>=30?'var(--green)':pct>=0?'var(--amber)':'var(--red)';
@@ -2562,8 +2566,8 @@ function renderBalEstimate(k){
     :rowHtml('Aporte de María<span class="be-tag">estimado</span>','25% de la casa proyectada ('+U(casaProj)+')',U(aporteEst),'est');
   if(otros>0)html+=rowHtml('Otros ingresos ya cargados','pasivos, referidos, comisiones',U(otros),'ok');
   html+=rowHtml('<b>Ingreso estimado</b>','','<b>'+U(ingresoEst)+'</b>','');
-  html+=rowHtml('Egresos proyectados a fin de mes','hasta hoy '+U(egresosNow)+' · variables al ritmo actual'+(fijosMissing?' · fijos que faltan al valor de '+mnName(prev).toLowerCase():''),U(egresosProj),'est');
-  html+='<div class="be-foot"><div class="p" style="color:'+col+'">'+pct+'%</div><div class="t">ahorro estimado del mes<br><b>'+U(ahorro)+'</b> si el mes termina como viene</div></div>';
+  html+=rowHtml('Egresos proyectados a fin de mes','hasta hoy '+U(egresosNow)+' · variables como el promedio de los últimos 3 meses'+(fijosMissing?' · fijos que faltan al valor de '+mnName(prev).toLowerCase():''),U(egresosProj),'est');
+  html+='<div class="be-foot"><div class="p" style="color:'+col+'">'+pct+'%</div><div class="t">ahorro estimado del mes<br><b>'+U(ahorro)+'</b> si es un mes normal</div></div>';
   el.innerHTML=html;el.style.display='block';
   const b=document.getElementById('beSueldoOk');if(b)b.onclick=()=>homeRun(b,()=>homeQuickIncome(k,'Sueldo',null,sueldoPrev));
 }
@@ -2925,32 +2929,22 @@ function renderBudget(k){
     const today=new Date();
     const curYM=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');
     const dim=new Date(yy,mm,0).getDate();
-    // Proyección a fin de mes: lo gastado hasta hoy, estirado a los días del mes.
-    // Verde = proyección ≤ 95% de la meta (ahorrando) · Naranja = 95–105% (en lo justo) · Rojo = > 105% (pasado)
+    // Sin proyección por ritmo: la tarjeta entra una vez por semana (export del domingo), así que el ritmo diario no dice nada.
+    // Solo: cuánto va, cuál es el tope, cuánto queda. Color por % usado: <70 verde · 70–100 naranja · >100 rojo (igual que las categorías).
     const g=id=>document.getElementById(id);
-    const isCur=k===curYM,day=isCur?today.getDate():dim;
-    const projTot=isCur&&day>0?spentTot/day*dim:spentTot;
-    const projPct=budTot>0?projTot/budTot*100:0;
+    const isCur=k===curYM;
     let col,cls,verdict;
-    if(projPct>105){col=C_NEG;cls='no';verdict='Pasado';}
-    else if(projPct>=95){col=C_WARN;cls='mid';verdict='En lo justo';}
-    else{col=C_POS;cls='ok';verdict='Ahorrando';}
-    if(!isCur&&k<curYM)verdict=projPct>100?'Excedido':'Dentro de la meta';
-    g('bsumLabel').textContent=isCur?'A este ritmo terminás en':(k<curYM?'Terminaste en':'Proyección');
-    g('bsumProj').textContent=fmtARS(Math.round(projTot));g('bsumProj').style.color=col;
+    if(spentPct>100){col=C_NEG;cls='no';verdict='Excedido';}
+    else if(spentPct>=70){col=C_WARN;cls='mid';verdict=isCur?'Cerca del tope':'Justo';}
+    else{col=C_POS;cls='ok';verdict=isCur?'Con margen':'Dentro del tope';}
+    g('bsumLabel').textContent=isCur?'Llevás gastado':(k<curYM?'Gastaste':'Gasto');
+    g('bsumProj').textContent=fmtARS(Math.round(spentTot));g('bsumProj').style.color=col;
     g('bsumBudget').textContent=fmtARS(budTot);
-    const margin=budTot-projTot;
-    g('bsumSub').innerHTML=isCur
-      ?'Gastaste <b>'+fmtARS(spentTot)+'</b> en '+day+(day===1?' día':' días')+' · '+(margin>=0?'te sobrarían <b>'+fmtARS(Math.round(margin))+'</b>':'te pasarías <b>'+fmtARS(Math.round(-margin))+'</b>')
-      :(margin>=0?'Quedaron <b>'+fmtARS(Math.round(margin))+'</b> sin gastar':'Te pasaste <b>'+fmtARS(Math.round(-margin))+'</b>');
+    const margin=budTot-spentTot;
+    g('bsumSub').innerHTML=margin>=0?(isCur?'Te quedan <b>':'Quedaron <b>')+fmtARS(Math.round(margin))+'</b>'+(isCur?' hasta el tope del mes':' sin gastar'):'Te pasaste <b>'+fmtARS(Math.round(-margin))+'</b> del tope';
     const pill=g('bsumPill');pill.className='bsum-pill '+cls;g('bsumVerdict').textContent=verdict;
-    const sp=Math.min(100,spentPct),pp=Math.min(100,projPct);
-    const fill=g('bsumFill');fill.style.width=sp+'%';fill.style.background=col;
-    const pf=g('bsumProjFill');pf.style.left=sp+'%';pf.style.width=Math.max(0,pp-sp)+'%';pf.style.background=col;pf.style.display=isCur?'block':'none';
-    const dot=g('bsumDot');dot.style.left=pp+'%';dot.style.borderColor=col;
+    const fill=g('bsumFill');fill.style.width=Math.min(100,spentPct)+'%';fill.style.background=col;
     g('bsumPct').textContent=Math.round(spentPct)+'%';
-    g('bsumProjPct').textContent=Math.round(projPct)+'%';
-    g('bsumPaceLbl').style.visibility=isCur?'visible':'hidden';
   }
 
   // Pozo anual de extraordinarios (en paralelo, no toca la meta variable)
