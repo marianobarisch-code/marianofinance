@@ -2263,6 +2263,27 @@ function homeIncomeSum(k,cat,sub){return homeIncome(k,cat,sub).reduce((s,r)=>s+(
 function homeNwRows(k){return (sbNwRows||[]).filter(r=>String(r.month_year).slice(0,7)===k);}
 function homeNwActiveItems(){return NW_GROUPS.flatMap(g=>g.items).filter(it=>{try{return !nwIsItemInactive(it);}catch(e){return true;}});}
 function homeFixedRows(k){return (fixedRows||[]).filter(r=>String(r.month_year).slice(0,7)===k&&!r.asset_name&&FIXED_ITEMS.includes(r.item_name)&&r.item_name!=='Megatlon');}
+// Vencimiento estimado de un fijo que todavía no tiene factura este mes: el día del vencimiento del mes anterior
+// (o del pago, si no se cargó vencimiento), buscando hasta 3 meses atrás. Devuelve {day, src} o null.
+function homeFixedEstDay(name,k){
+  for(let n=1;n<=3;n++){
+    const r=homeFixedRows(homePrevKey(k,n)).find(x=>x.item_name===name);
+    if(!r)continue;
+    const d=r.due_date||r.paid_date;if(!d)continue;
+    return{day:parseInt(String(d).slice(8,10),10),src:r.due_date?'venció':'pagaste'};
+  }
+  return null;
+}
+const HOME_FIXED_MARGIN=4; // días de aviso antes del vencimiento estimado (por si la factura se adelanta)
+// Fijos del mes sin monto cargado, con su vencimiento estimado → {name, est(Date|null), diff(días hasta el estimado)}
+function homeFixedPending(k,today){
+  const rows=homeFixedRows(k);const[y,m]=k.split('-').map(Number);const dim=new Date(y,m,0).getDate();
+  return homeFixedExpected(k).filter(n=>{const r=rows.find(x=>x.item_name===n);return !r||!(parseFloat(r.amount)||0);}).map(n=>{
+    const e=homeFixedEstDay(n,k);if(!e)return{name:n,est:null,diff:null,src:null};
+    const est=new Date(y,m-1,Math.min(e.day,dim));
+    return{name:n,est,diff:Math.ceil((est-today)/86400000),src:e.src,day:Math.min(e.day,dim)};
+  });
+}
 function homeFixedExpected(k){ // ítems que tuvieron monto en alguno de los últimos 3 meses
   const set=new Set();
   [k,homePrevKey(k,1),homePrevKey(k,2)].forEach(kk=>homeFixedRows(kk).forEach(r=>{if((parseFloat(r.amount)||0)>0)set.add(r.item_name);}));
@@ -2411,10 +2432,16 @@ function homeLiveHtml(today){
       const cls=diff<=1?'no':'mid';
       lines.push({st:cls,txt:homeEsc(r.item_name)+' vence el '+homeDM(r.due_date)+' · '+(r.currency==='USD'?homeFmtU(r.amount):homeFmtA(r.amount)),det:when,cls});
     });
-  // fijos del mes actual todavía sin monto
-  const exp=homeFixedExpected(k);const rows=homeFixedRows(k);
-  const noAmt=exp.filter(n=>{const r=rows.find(x=>x.item_name===n);return !r||!(parseFloat(r.amount)||0);});
-  if(noAmt.length)lines.push({st:'off',txt:homeEsc(noAmt.join(', '))+': sin monto todavía',det:'esperando factura',cls:''});
+  // fijos del mes sin factura cargada: uno por línea, con vencimiento estimado por el mes anterior y 4 días de margen
+  const pend=homeFixedPending(k,today);
+  const calm=[];
+  pend.forEach(p=>{
+    if(p.est===null){calm.push(p.name);return;}
+    if(p.diff<0)lines.push({st:'no',txt:homeEsc(p.name)+': puede estar vencido',det:'el mes pasado '+p.src+' el '+p.day+' · sin cargar',cls:'no'});
+    else if(p.diff<=HOME_FIXED_MARGIN)lines.push({st:'mid',txt:homeEsc(p.name)+': vencería ~el '+p.day,det:(p.diff===0?'hoy':p.diff===1?'mañana':'en '+p.diff+' días')+' · cargá la factura',cls:'mid'});
+    else calm.push(p.name+' (~'+p.day+')');
+  });
+  if(calm.length)lines.push({st:'off',txt:homeEsc(calm.join(', '))+': sin factura todavía',det:'vencen más adelante',cls:''});
   // pines: recordatorios abiertos (de este mes o arrastrados de meses anteriores)
   (homePins||[]).filter(p=>!p.done_at&&p.month<=k).forEach(p=>{
     lines.push({st:'mid',txt:'📌 '+homeEsc(p.title),det:homeEsc(p.note||(p.month<k?'desde '+homeMonthName(p.month).toLowerCase():'pendiente')),cls:'mid',pin:p.id});
@@ -3177,11 +3204,14 @@ function updateBudgetAlertDot(){
   let pend=0;
   try{const t=new Date();if(t.getDate()>=4){pend=homeChecklist(homePrevKey(homeKey(t),1)).filter(i=>i.st!=='ok').length;}}catch(e){}
   const parts=[];
+  let est=0;try{const t=new Date();t.setHours(0,0,0,0);est=homeFixedPending(homeKey(t),t).filter(p=>p.diff!==null&&p.diff<=HOME_FIXED_MARGIN).length;}catch(e){}
   if(n>0)parts.push(n+(n===1?' pago por vencer':' pagos por vencer'));
+  if(est>0)parts.push(est+(est===1?' factura por vencer sin cargar':' facturas por vencer sin cargar'));
   if(pend>0)parts.push(pend+(pend===1?' pendiente del cierre':' pendientes del cierre'));
   const pins=(homePins||[]).filter(p=>!p.done_at).length;
   if(pins>0)parts.push(pins+(pins===1?' recordatorio':' recordatorios'));
   if(parts.length){dot.classList.add('show');dot.title=parts.join(' · ');}
+  else if(est>0){dot.classList.add('show');}
   else{dot.classList.remove('show');}
 }
 
