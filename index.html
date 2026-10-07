@@ -457,6 +457,16 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
 .bal-period-btn.active{background:var(--primary);color:#fff;border-color:var(--primary);}
 .txn-action-btn.danger:hover{color:var(--red);}
 .month-exp-card{max-width:780px;}
+.ta-split{display:flex;flex-direction:column;gap:5px;margin-top:4px;font-size:13px;}
+.ta-split .r{display:flex;justify-content:space-between;gap:10px;}
+.ta-split .r b{font-family:'DM Mono',monospace;font-weight:600;}
+.ta-split .r span:first-child{color:var(--text2);}
+.ta-split .bar{height:6px;border-radius:3px;background:var(--surface2);overflow:hidden;display:flex;margin-top:2px;}
+.ta-split .bar i{display:block;height:100%;}
+.month-exp-row.ta-row{grid-template-columns:52px 1fr 110px 130px 110px;}
+.ta-day{display:flex;align-items:center;gap:8px;padding:10px 10px 4px;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text3);}
+.ta-day b{font-family:'DM Mono',monospace;color:var(--text2);font-weight:600;letter-spacing:0;text-transform:none;margin-left:auto;}
+.ta-ex{font-size:11px;color:var(--amber);background:var(--amber-bg);border-radius:4px;padding:2px 7px;white-space:nowrap;}
 .month-exp-row{display:grid;grid-template-columns:64px 1fr 110px 130px 84px;gap:10px;align-items:center;padding:7px 10px;font-size:13px;border-bottom:1px solid var(--border);}
 .month-exp-row:nth-child(even){background:var(--surface2);}
 .month-exp-row.month-exp-head{background:transparent;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text3);letter-spacing:.04em;padding:6px 10px;border-bottom:2px solid var(--border);}
@@ -867,11 +877,33 @@ main{max-width:1100px;margin:0 auto;padding:1.75rem 1.5rem;}
   <!-- TAB: BUDGET -->
   <div class="tab-panel" id="tab-budget">
     <div class="budget-subtabs">
-      <button class="budget-subtab active" data-bsub="home" data-scope="mio" id="bsubPersonal">👤 Personal</button>
+      <button class="budget-subtab active" data-bsub="todo" id="bsubTodo">📋 Todo</button>
+      <button class="budget-subtab" data-bsub="home" data-scope="mio" id="bsubPersonal">👤 Personal</button>
       <button class="budget-subtab" data-bsub="home" data-scope="casa" id="bsubFamily">🏠 Family Economy</button>
       <button class="budget-subtab" data-bsub="fijos">Gastos Fijos</button>
     </div>
-    <div class="budget-subpanel active" id="bsub-home">
+    <!-- TODO: vista unificada del mes (Casa + Personal + extraordinarios) -->
+    <div class="budget-subpanel active" id="bsub-todo">
+      <div class="metrics-grid-2">
+        <div class="metric-card">
+          <div class="metric-label">Gastado este mes · todo (ARS)</div>
+          <div class="metric-value" id="taTotal">—</div>
+          <div class="metric-sub" id="taTotalSub">—</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Cómo se reparte</div>
+          <div class="ta-split" id="taSplit"></div>
+        </div>
+      </div>
+      <button class="add-expense-btn" id="addExpenseBtnTodo"><span style="font-size:18px;line-height:1;">+</span><span>Add expense</span></button>
+      <div class="card month-exp-card" style="max-width:none">
+        <div class="card-title-row">
+          <div class="card-title">Todas las entradas — <span id="taListLabel"></span> <span style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none">— más reciente arriba · 🏠 casa · 👤 personal · ✨ extraordinario</span></div>
+        </div>
+        <div id="taList"></div>
+      </div>
+    </div>
+    <div class="budget-subpanel" id="bsub-home">
     <!-- 1. Metric cards -->
     <div id="famCurRow" style="display:none;">
       <span class="fam-title">🏠 Family Economy · <span id="famMonth"></span></span>
@@ -2521,6 +2553,7 @@ function render(){
   if(mSel&&ySel){mSel.value=parseInt(m);ySel.value=y;}
   renderBalance(k);
   renderBudget(k);
+  try{renderBudgetTodo(k);}catch(e){console.warn('budgetTodo:',e);}
   renderFixed(k);
   renderNetWorth(k);
   renderInsights(k);
@@ -3052,6 +3085,47 @@ function renderFamExtras(k){
 }
 (function(){const t=document.getElementById('famCurToggle');if(t)t.addEventListener('click',e=>{const b=e.target.closest('.ex-scope-btn');if(!b)return;famCur=b.dataset.cur;if(months&&months.length)renderBudget(months[curIdx]);});})();
 
+// ── BUDGET · TODO: el mes entero sin filtro de ámbito ─────────
+function renderBudgetTodo(k){
+  const tot=document.getElementById('taTotal');if(!tot)return;
+  const all=varRows.filter(r=>mk(r.date)===k&&r.payer!=='maria').sort((a,b)=>b.date-a.date||0);
+  const vars=all.filter(r=>r.cat!=='Extraordinary'),extra=all.filter(r=>r.cat==='Extraordinary');
+  const sc=r=>r.scope||scopeForCat(r.cat);
+  const casa=vars.filter(r=>sc(r)==='casa').reduce((s,r)=>s+r.amt,0),mio=vars.filter(r=>sc(r)!=='casa').reduce((s,r)=>s+r.amt,0);
+  const varTot=casa+mio,exTot=extra.reduce((s,r)=>s+r.amt,0),exUsd=extra.reduce((s,r)=>s+(r.amtUsd||0),0);
+  const varUsd=vars.reduce((s,r)=>s+(r.amtUsd||0),0);
+  tot.textContent=fmtARS(varTot);
+  const sub=document.getElementById('taTotalSub');
+  const today=new Date();const isCur=k===mk(today);
+  const prevK=months[curIdx-1];let cmp='';
+  if(prevK){const cut=isCur?today.getDate():31;const pv=varRows.filter(r=>mk(r.date)===prevK&&r.cat!=='Extraordinary'&&r.payer!=='maria'&&r.date.getDate()<=cut).reduce((s,r)=>s+r.amt,0);if(pv>0){const d=Math.round((varTot-pv)/pv*100);cmp=' · '+(d>=0?'+':'')+d+'% vs '+mnShort(prevK)+(isCur?' al día '+cut:'');}}
+  sub.textContent='US$ '+Math.round(varUsd).toLocaleString('es-AR')+' · '+vars.length+' variables'+(extra.length?' + '+extra.length+' extraordinarios (US$ '+Math.round(exUsd).toLocaleString('es-AR')+')':'')+cmp;
+  const pc=varTot?Math.round(casa/varTot*100):0;
+  document.getElementById('taSplit').innerHTML=
+    '<div class="r"><span>🏠 Casa</span><b>'+fmtARS(casa)+' · '+pc+'%</b></div>'+
+    '<div class="r"><span>👤 Personal</span><b>'+fmtARS(mio)+' · '+(100-pc)+'%</b></div>'+
+    '<div class="bar"><i style="width:'+pc+'%;background:var(--primary)"></i><i style="width:'+(100-pc)+'%;background:var(--primary-light)"></i></div>'+
+    (extra.length?'<div class="r" style="margin-top:2px"><span>✨ Extraordinarios</span><b>'+fmtARS(exTot)+'</b></div>':'');
+  document.getElementById('taListLabel').textContent=mnName(k)+' ('+all.length+')';
+  const list=document.getElementById('taList');
+  if(!all.length){list.innerHTML='<div style="padding:1rem;text-align:center;color:var(--text3);font-size:13px;">Sin gastos este mes</div>';return;}
+  const DOW=['dom','lun','mar','mié','jue','vie','sáb'];
+  let html='',lastDay='';
+  all.forEach(r=>{
+    const dk=fmtDay(r.date);
+    if(dk!==lastDay){
+      const dayTot=all.filter(x=>fmtDay(x.date)===dk).reduce((s,x)=>s+x.amt,0);
+      html+='<div class="ta-day">'+DOW[r.date.getDay()]+' '+dk+'<b>'+fmtARS(dayTot)+'</b></div>';lastDay=dk;
+    }
+    const isEx=r.cat==='Extraordinary';
+    const catColor=isEx?'#92600a':(catColorMap[r.cat]||'#888');
+    const badge=isEx?'<span class="ta-ex">✨ '+(r.sub||'Extraordinario')+'</span>':'<span class="month-exp-cat-badge" style="color:'+catColor+';background:'+catColor+'1a;">'+r.cat+'</span>';
+    const amt=isEx&&r.cur==='USD'?'US$ '+Math.round(r.amtUsd).toLocaleString('es-AR'):fmtARS(r.amt);
+    const acts='<div class="month-exp-actions">'+scopeChip(r)+(r.id?'<button class="txn-action-btn" data-act="edit" data-id="'+r.id+'" title="Editar">✏</button><button class="txn-action-btn danger" data-act="del" data-id="'+r.id+'" title="Borrar">🗑</button>':'')+'</div>';
+    html+='<div class="month-exp-row ta-row"><div class="month-exp-date">'+(isEx?'✨':(sc(r)==='casa'?'🏠':'👤'))+'</div><div class="month-exp-name" title="'+r.name.replace(/"/g,'&quot;')+'">'+r.name+'</div><div class="month-exp-amt">'+amt+'</div><div>'+badge+'</div>'+acts+'</div>';
+  });
+  list.innerHTML=html;
+}
 function renderMonthExpensesList(k){
   const all=varRows.filter(r=>mk(r.date)===k&&inBudgetScope(r)).sort((a,b)=>b.date-a.date);
   const lblEl=document.getElementById('monthExpensesLabel');
@@ -4043,6 +4117,8 @@ document.getElementById('txnList').onclick=async e=>{
     }catch(err){alert('Error al borrar: '+err.message);btn.disabled=false;}
   }
 };
+document.getElementById('taList').onclick=e=>{const b=e.target.closest('.txn-action-btn');if(b)document.getElementById('monthExpensesList').onclick(e);};
+document.getElementById('addExpenseBtnTodo').onclick=()=>document.getElementById('addExpenseBtn').click();
 document.getElementById('monthExpensesList').onclick=async e=>{
   const btn=e.target.closest('.txn-action-btn');
   if(!btn)return;
